@@ -9,10 +9,10 @@ local description = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 description:SetPoint("TOPLEFT", 16, -48)
 description:SetWidth(520)
 description:SetJustifyH("LEFT")
-description:SetText("Choose your damage colors. Changes apply immediately and are saved across reloads. Auto-attacks remain native white.")
+description:SetText("Choose your damage colors. Changes apply immediately and are saved across reloads. Physical includes auto-attacks on our overlay.")
 
 local schools = {
-    { 1, "Physical skills / bleeds (preview only)" },
+    { 1, "Physical / auto-attacks / bleeds" },
     { 64, "Arcane" }, { 4, "Fire" }, { 32, "Shadow" },
     { 16, "Frost" }, { 8, "Nature" }, { 2, "Holy" },
     { 0, "Other / mixed schools" },
@@ -102,7 +102,7 @@ local note = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 note:SetPoint("TOPLEFT", 16, -470)
 note:SetWidth(520)
 note:SetJustifyH("LEFT")
-note:SetText("Physical skill colors apply to the preview only; live physical numbers remain unchanged. Mixed schools, including Frostfire, use Other. Magic numbers include all attackers on your target.")
+note:SetText("Numbers pop above visible enemy nameplates, including mouseover and AoE hits. All attackers are included. Native numbers remain enabled and may duplicate the overlay. Mixed schools, including Frostfire, use Other.")
 
 local category = Settings.RegisterCanvasLayoutCategory(panel, "DamageColor")
 Settings.RegisterAddOnCategory(category)

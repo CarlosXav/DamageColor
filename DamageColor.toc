@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: DamageColor
-## Notes: Magic-school damage overlay for your target; preserves native physical text.
-## Version: 0.3.0
+## Notes: School-colored damage with impact pops above visible enemy nameplates.
+## Version: 0.5.0
 ## SavedVariables: DamageColorDB
 
 Palette.lua
