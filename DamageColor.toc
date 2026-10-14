@@ -1,0 +1,6 @@
+## Interface: 16001
+## Title: DamageColor
+## Notes: Magic-school damage overlay for your target; preserves native physical text.
+## Version: 0.2.0
+
+DamageColor.lua
