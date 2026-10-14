@@ -62,7 +62,13 @@ plate.x, plate.y, plate.scale, plate.shown = 400, 300, 0.6, true
 C_NamePlate = { GetNamePlateForUnit = function(unit) assert(unit == "target"); return plate end }
 STANDARD_TEXT_FONT = "test-font"
 SlashCmdList = {}
-C_Timer = { After = function() end }
+local timers = {}
+C_Timer = { After = function(delay, callback) timers[#timers + 1] = { delay, callback } end }
+local function runRemovalTimers()
+    local pending = timers
+    timers = {}
+    for _, timer in ipairs(pending) do if timer[1] == 0.5 then timer[2]() end end
+end
 local cvars, denyCVarWrites = { floatingCombatTextCombatDamage_v2 = "1" }, false
 C_CVar = {
     GetCVar = function(name) return cvars[name] end,
@@ -169,9 +175,9 @@ assert(math.abs(physical.fontSize - 72) < 0.001, "Normal hit must pop to 150% of
 assert(physical.point[4] == originalX and math.abs(physical.point[5] - originalY - 0.96) < 0.001)
 live.scripts.OnUpdate(live, 0.16)
 assert(math.abs(physical.fontSize - 48) < 0.001, "Normal hit must settle to doubled size")
-live.scripts.OnUpdate(live, 0.61)
+live.scripts.OnUpdate(live, 1.31)
 assert(physical.alpha > 0 and physical.alpha < 1, "Hit must fade")
-live.scripts.OnUpdate(live, 0.15)
+live.scripts.OnUpdate(live, 0.25)
 assert(not physical.shown, "Hit must expire")
 
 local function assertSkipped(amount)
@@ -198,7 +204,7 @@ for _, frame in ipairs(frames) do if frame.text == "904" then anchored = frame e
 assert(anchored and anchored.shown, "Secret geometry must not discard a readable damage event")
 assert(anchored.point[2] == plate, "Secret geometry must use a direct frame anchor")
 damageFrame.scripts.OnEvent(damageFrame, "PLAYER_TARGET_CHANGED")
-assert(not anchored.shown, "Anchored numbers must clear before the plate can be reused")
+assert(anchored.shown, "Target changes must not truncate an existing damage number")
 plate.x, plate.y = 400, 300
 issecretvalue = nil
 
@@ -223,9 +229,9 @@ local function listener(unit)
     end
     error("Missing nameplate listener: " .. unit)
 end
-local function hit(unit, amount, flags)
+local function hit(unit, amount, flags, school)
     local frame = listener(unit)
-    frame.scripts.OnEvent(frame, "UNIT_COMBAT", unit, "WOUND", flags or "", amount, 4)
+    frame.scripts.OnEvent(frame, "UNIT_COMBAT", unit, "WOUND", flags or "", amount, school or 4)
 end
 local function number(amount)
     for _, frame in ipairs(frames) do if frame.text == tostring(amount) then return frame end end
@@ -253,11 +259,29 @@ assert(number(1006).shown, "Changing targets must not hide off-target damage")
 damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_REMOVED", "nameplate1")
 assert(number(1006).shown, "Removing another plate must not hide this enemy's hits")
 damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_REMOVED", "nameplate2")
-assert(not number(1006).shown, "Removing the owning plate must clear anchored hits")
+assert(number(1006).shown and number(1006).point[2] == UIParent,
+    "Dying enemy's anchored damage must detach and linger at its cached position")
+second.shown = false
+hit("nameplate2", 1007, "", 1)
+hit("nameplate2", 1008, "CRITICAL", 2)
+assert(number(1007).shown and number(1008).shown, "Late auto-attack and skill killing blows must display")
+rgb(number(1007).color, 1, 0.20, 0.20)
+local deathX = number(1007).point[4]
+second.x, second.y = 900, 700
+live.scripts.OnUpdate(live, 1.4)
+assert(number(1007).shown and number(1008).shown, "Killing blows must linger beyond one second")
+assert(number(1007).point[4] == deathX, "Killing blow must not move with a recycled plate")
+live.scripts.OnUpdate(live, 0.41)
+assert(not number(1007).shown and not number(1008).shown, "Killing blows must eventually expire")
+runRemovalTimers()
 for _, frame in ipairs(frames) do assert(frame.events.UNIT_COMBAT ~= "nameplate2", "Removed plate must unsubscribe") end
 hit("nameplate3", 2000) -- Friendly damage remains filtered.
 plate.x, plate.y = 400, 300
 damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_ADDED", "nameplate1")
+damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_REMOVED", "nameplate1")
+damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_ADDED", "nameplate1")
+runRemovalTimers()
+assert(listener("nameplate1"), "Old grace timer must not unsubscribe a reused nameplate")
 hit("nameplate1", 2001, "CRITICAL")
 hit("nameplate1", 2002)
 local crit, normal = number(2001), number(2002)
@@ -273,6 +297,35 @@ assert(math.abs(crit.fontSize - 96) < 0.001 and math.abs(normal.fontSize - 48) <
 for amount = 2101, 2164 do hit("nameplate1", amount) end
 assert(math.abs(crit.fontSize - 48 * 0.85) < 0.001, "Reused slots must reset critical sizing")
 issecretvalue, UnitCanAttack = nil, nil
+
+-- Reproduce the user's trace: a plate whose coordinates were NEVER readable.
+local secretPlate = CreateFrame("Frame")
+secretPlate.x, secretPlate.y, secretPlate.shown = secretPosition, secretPosition, true
+plates.nameplate4 = secretPlate
+issecretvalue = function(value) return value == secretPosition end
+damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_ADDED", "nameplate4")
+hit("nameplate4", 2901, "", 1)
+hit("nameplate4", 2902, "CRITICAL", 2)
+secretPlate.shown = false
+damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_REMOVED", "nameplate4")
+assert(number(2901).shown and number(2902).shown, "Secret-only death must not clear existing auto/skill hits")
+assert(number(2902).parent == live and number(2902).point[2] == secretPlate,
+    "Lingering text must have an independent parent and retain only a frame anchor")
+hit("nameplate4", 2903, "", 1)
+assert(number(2903).shown, "Late killing blow must render even without any coordinate cache")
+runRemovalTimers()
+live.scripts.OnUpdate(live, 1.4)
+assert(number(2901).shown and number(2902).shown and number(2903).shown,
+    "Hidden-anchor numbers must survive listener cleanup and linger beyond one second")
+secretPlate.shown = true
+damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_ADDED", "nameplate4")
+assert(not number(2901).shown and not number(2903).shown, "Reusing a secret-only plate must clear its old hits")
+hit("nameplate4", 2904)
+secretPlate.shown = false
+damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_REMOVED", "nameplate4")
+live.scripts.OnUpdate(live, 1.81)
+assert(not number(2904).shown, "Hidden-anchor hits must expire normally without plate reuse")
+issecretvalue = nil
 
 -- Settings controls apply font and size immediately and preserve crit scaling.
 local dropdown, slider
@@ -358,4 +411,41 @@ cvars = { floatingCombatTextCombatDamage_v2 = "0" }
 addon = loadAddon(nil)
 addon.SetHideBlizzardDamage(false)
 assert(cvars.floatingCombatTextCombatDamage_v2 == "0", "An originally hidden native display must stay hidden")
-print("PASS: appearance, crits, colors, AoE, native checkbox/default/persistence, restoration, logout, retry, and legacy CVar")
+local output, originalPrint = {}, print
+print = function(message) output[#output + 1] = message end
+GetBuildInfo = function() return "1.60.1", "70374", "Oct 12 2026", 16001 end
+SlashCmdList.DAMAGECOLOR("watch")
+for _, frame in ipairs(frames) do
+    if frame.events.UNIT_COMBAT == "target" then
+        frame.scripts.OnEvent(frame, "UNIT_COMBAT", "target", "WOUND", "", 4321, 1)
+    end
+    if frame.events.NAME_PLATE_UNIT_REMOVED then
+        frame.scripts.OnEvent(frame, "NAME_PLATE_UNIT_REMOVED", "nameplate1")
+    end
+end
+SlashCmdList.DAMAGECOLOR("report")
+print = originalPrint
+local report = table.concat(output, "\n")
+assert(report:find("LIVE_EVENT", 1, true) and report:find("RAW_TARGET", 1, true)
+    and report:find("PLATE_REMOVED", 1, true), "Report must expose both feeds and removal order")
+assert(not report:find("4321", 1, true), "Trace must not record damage amounts")
+-- A blocked-action popup cannot be prevented by pcall. Watch must never
+-- attempt combat-log registration or read its restricted payload.
+local register = methods.RegisterEvent
+local forbiddenCalls = 0
+methods.RegisterEvent = function(self, event)
+    if event == "COMBAT_LOG_EVENT_UNFILTERED" or event == "COMBAT_LOG_EVENT" then
+        forbiddenCalls = forbiddenCalls + 1
+        error("Blizzard-only action")
+    end
+    return register(self, event)
+end
+CombatLogGetCurrentEventInfo = function()
+    forbiddenCalls = forbiddenCalls + 1
+    error("Blizzard-only reader")
+end
+SlashCmdList.DAMAGECOLOR("watch")
+SlashCmdList.DAMAGECOLOR("stop")
+assert(forbiddenCalls == 0, "Watch must not invoke Blizzard-only combat-log APIs")
+methods.RegisterEvent = register
+print("PASS: appearance, crits, colors, AoE, late killing blows, death linger, recycled plates, native visibility, persistence, and retry")

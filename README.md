@@ -31,7 +31,7 @@ Enable DamageColor in the character-selection AddOns list, then log in or reload
 - `/dc` or `/dc settings`: open the color suite, also available under Settings → AddOns → DamageColor.
 - `/dc preview`: show the intended palette using synthetic samples for 10 seconds.
 - `/dc on` / `/dc off`: enable or disable live overlay numbers for this session.
-- `/dc watch`: collect target combat-event metadata for 20 seconds.
+- `/dc watch`: trace combat-event metadata and nameplate removal order for 20 seconds.
 - `/dc stop`: stop collecting early.
 - `/dc report`: print the client build, counts, event types, flags, and school masks.
 
@@ -65,19 +65,43 @@ then run `/dc watch` and save `/dc report` after it finishes. Repeat using Heroi
 Strike. The diagnostic does not read combat logs or collect damage amounts;
 secret metadata is replaced with `<secret>`.
 
+To diagnose a missing killing blow, run `/dc watch`, kill one enemy, then run
+`/dc report`. The report includes the last 60 timestamped trace entries: raw
+target events, nameplate events, target-alias suppression, displayed hits,
+nameplate removal, skip reasons, and listener cleanup. This distinguishes a
+missing client event from an event the overlay received but discarded.
+
+The combat-log probe was removed after build 70374 displayed a Blizzard-only
+blocked-action warning on event registration. Wrapping that call in `pcall`
+does not prevent the client's warning. `/dc watch` now uses only the supported
+unit-event diagnostics and never registers combat-log events or reads their
+payloads. Missing lethal auto-attacks remain unresolved when neither unit feed
+delivers the hit; the visible Blizzard combat log is not proof of addon access.
+
 Live damage appears **above visible enemy nameplates**, including mouseover
 casts and AoE hits on enemies other than your selected target. All attackers
 are included. Known friendly units are excluded using their readable reaction
 when the plate appears. Enable enemy nameplates (normally **V**) to see the overlay.
-Each number grows quickly to 150% size, settles, and fades after one second,
+Each number grows quickly to 150% size, settles, and fades after 1.8 seconds,
 with the selected normal text size (48 UI units by default). Hits flagged
 `CRITICAL` are twice the normal size throughout the animation (default peak
 144 versus 72). The palette preview uses the selected font and text size.
 Numbers drift upward slightly and capture the nameplate's screen position
 at impact and finish there when coordinates are readable. If the client hides
 coordinates but exposes the frame, numbers anchor directly above the plate and
-clear when that plate is removed to avoid following a reused plate. Switching
-targets does not clear numbers on other enemies.
+detach to the last readable position when the plate disappears. Switching
+targets does not clear numbers on other enemies. Nameplate positions are cached
+when they appear and refreshed while readable. If no readable position was ever
+available, numbers keep their anchor to the hidden plate and finish fading;
+their parent remains the independent overlay. They clear early only if that
+same plate is reused for another unit, so old hits cannot follow the new enemy.
+
+Removed nameplates keep their combat listener for another half-second to catch
+late killing blows, using the cached position. These hits get the full animation
+lifetime, including auto-attacks. A reused nameplate starts a fresh subscription;
+its old removal timer cannot disable the new one. A killing blow the client never
+delivers, or one with neither a usable position nor an accessible retained
+frame anchor, still cannot be displayed.
 This approximates the native impact effect;
 it does not use Blizzard's world-space damage renderer.
 

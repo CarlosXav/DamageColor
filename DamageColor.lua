@@ -22,10 +22,25 @@ live:SetAllPoints(UIParent)
 live:SetFrameStrata("HIGH")
 local enabled, sequence = true, 0
 local tracked = {}
+local labelLifetime, removalGrace = 1.8, 0.5
 local displayStats = { received = 0, shown = 0, skipped = 0, last = "none" }
+local watching = false
+local traceLog = {}
+local function trace(kind, unit, detail)
+    if not watching then return end
+    local function safe(value)
+        if secret(value) then return "<secret>" end
+        if type(value) == "string" or type(value) == "number" then return tostring(value) end
+        return "-"
+    end
+    local time = GetTime and string.format("%.3f", GetTime()) or "-"
+    if #traceLog >= 60 then table.remove(traceLog, 1) end
+    traceLog[#traceLog + 1] = time .. " " .. kind .. " " .. safe(unit) .. " " .. safe(detail)
+end
 local function skipped(reason)
     displayStats.skipped = displayStats.skipped + 1
     displayStats.last = reason
+    trace("SKIP", nil, reason)
 end
 local labels = {}
 for i = 1, 64 do
@@ -35,7 +50,25 @@ for i = 1, 64 do
     labels[i] = { text = text, age = 0, active = false }
 end
 live:Hide()
+local function readPlatePosition(plate)
+    local ok, x, y = pcall(function()
+        if plate:IsForbidden() then return end
+        local px = plate:GetCenter()
+        local py = plate:GetTop()
+        local plateScale, uiScale = plate:GetEffectiveScale(), UIParent:GetEffectiveScale()
+        if secret(px) or secret(py) or secret(plateScale) or secret(uiScale) then return end
+        if type(px) ~= "number" or type(py) ~= "number"
+            or type(plateScale) ~= "number" or type(uiScale) ~= "number" or uiScale <= 0 then return end
+        return px * plateScale / uiScale, py * plateScale / uiScale
+    end)
+    if ok then return x, y end
+end
 local function unitPosition(unit)
+    local record = tracked[unit]
+    if record and record.draining then
+        if record.lastX and record.lastY then return record.lastX, record.lastY end
+        return nil, nil, record.plate, "killing-blow anchor unavailable"
+    end
     if not C_NamePlate or not C_NamePlate.GetNamePlateForUnit then return nil, nil, nil, "nameplate API unavailable" end
     local ok, plate, reason = pcall(function()
         local plate = C_NamePlate.GetNamePlateForUnit(unit)
@@ -46,16 +79,11 @@ local function unitPosition(unit)
     end)
     if not ok then return nil, nil, nil, "nameplate lookup or visibility restricted" end
     if not plate then return nil, nil, nil, reason end
-    local positioned, x, y = pcall(function()
-        local px = plate:GetCenter()
-        local py = plate:GetTop()
-        local plateScale, uiScale = plate:GetEffectiveScale(), UIParent:GetEffectiveScale()
-        if secret(px) or secret(py) or secret(plateScale) or secret(uiScale) then return end
-        if type(px) ~= "number" or type(py) ~= "number"
-            or type(plateScale) ~= "number" or type(uiScale) ~= "number" or uiScale <= 0 then return end
-        return px * plateScale / uiScale, py * plateScale / uiScale
-    end)
-    if positioned and x and y then return x, y end
+    local x, y = readPlatePosition(plate)
+    if x and y then
+        if record then record.lastX, record.lastY = x, y end
+        return x, y
+    end
     -- Geometry can be secret even when a nameplate is accessible. Anchor to
     -- the frame directly without reading or doing arithmetic on its position.
     return nil, nil, plate
@@ -64,7 +92,21 @@ end
 local function positionLabel(label)
     label.text:ClearAllPoints()
     if label.anchor then
-        if label.anchor:IsForbidden() or not label.anchor:IsVisible() then return false end
+        if label.anchor:IsForbidden() then return false end
+        if not label.anchor:IsVisible() then
+            local record = tracked[label.unit]
+            if record and record.lastX and record.lastY then
+                label.x, label.y = record.lastX + label.x, record.lastY + label.y
+                label.anchor = nil
+            else
+                -- Hidden anchors do not hide our text: its parent is `live`,
+                -- not the nameplate. Keep the existing anchor without reading
+                -- secret coordinates, and discard it only if the plate is reused.
+                label.retired = true
+            end
+        end
+    end
+    if label.anchor then
         label.text:SetPoint("CENTER", label.anchor, "TOP", label.x, label.y + label.age * 12)
     else
         -- Snapshot when readable: old hits remain at their impact position.
@@ -79,7 +121,7 @@ local function positionLabel(label)
         scale = 1
     end
     addon.ApplyFont(label.text, label.baseSize * scale)
-    label.text:SetAlpha(math.min(1, (1.0 - label.age) / 0.3))
+    label.text:SetAlpha(math.min(1, (labelLifetime - label.age) / 0.4))
     return true
 end
 live:SetScript("OnUpdate", function(self, elapsed)
@@ -87,7 +129,7 @@ live:SetScript("OnUpdate", function(self, elapsed)
     for _, label in ipairs(labels) do
         if label.active then
             label.age = label.age + elapsed
-            if label.age >= 1.0 then
+            if label.age >= labelLifetime then
                 label.active = false
                 label.text:Hide()
             else
@@ -105,20 +147,25 @@ live:SetScript("OnUpdate", function(self, elapsed)
 end)
 
 local function handleDamage(unit, event, flags, amount, school)
+    trace("LIVE_EVENT", unit, event)
+    trace("FLAGS", unit, flags)
     displayStats.received = displayStats.received + 1
     if not enabled then skipped("overlay disabled"); return end
     if secret(unit) or secret(event) or secret(school) or secret(amount) then skipped("secret event data"); return end
     if event ~= "WOUND" then return end
     local record = tracked[unit]
     if record and record.attackable == false then return end
-    if unit ~= "target" and (not record or not record.active) then return end
+    if unit ~= "target" and (not record or (not record.active and not record.draining)) then return end
     if unit == "target" and C_NamePlate then
         -- A target alias and its nameplate token can report the same hit.
         -- Prefer the nameplate subscription; never deduplicate by hit amount.
         local ok, plate = pcall(C_NamePlate.GetNamePlateForUnit, "target")
         if ok and plate then
             for _, entry in pairs(tracked) do
-                if entry.active and entry.plate == plate then return end
+                if entry.active and entry.plate == plate then
+                    trace("ALIAS_SKIPPED", unit, "waiting for nameplate event")
+                    return
+                end
             end
         end
     end
@@ -133,6 +180,7 @@ local function handleDamage(unit, event, flags, amount, school)
     label.critical = critical
     label.baseSize = addon.appearance.size * (critical and 2 or 1)
     label.anchor, label.unit = anchor, unit
+    label.retired = record and record.draining or false
     label.x = (x or 0) + ((sequence - 1) % 3 - 1) * 36
     label.y = (y or 0) + label.baseSize * 0.75 + ((sequence - 1) % 2) * 18
     label.text:SetText(tostring(amount))
@@ -145,6 +193,7 @@ local function handleDamage(unit, event, flags, amount, school)
         return
     end
     displayStats.shown = displayStats.shown + 1
+    trace("SHOWN", unit, school)
     label.text:Show()
     live:Show()
 end
@@ -159,7 +208,20 @@ local function trackUnit(unit)
             handleDamage(...)
         end)
     end
+    record.generation = (record.generation or 0) + 1
+    record.draining = false
+    record.lastX, record.lastY = nil, nil
     local ok, plate = pcall(C_NamePlate.GetNamePlateForUnit, unit)
+    if ok and plate then
+        for _, label in ipairs(labels) do
+            if label.active and label.retired and label.anchor == plate then
+                label.active = false
+                label.text:Hide()
+                label.anchor = nil
+                trace("REUSED_ANCHOR_CLEARED", unit)
+            end
+        end
+    end
     record.plate = ok and plate or nil
     record.attackable = nil
     if UnitCanAttack then
@@ -168,6 +230,7 @@ local function trackUnit(unit)
     end
     record.active = true
     record.listener:RegisterUnitEvent("UNIT_COMBAT", unit)
+    unitPosition(unit) -- Cache the position before combat can restrict geometry.
 end
 
 local damageEvents = CreateFrame("Frame")
@@ -180,24 +243,49 @@ damageEvents:SetScript("OnEvent", function(_, eventName, unit, ...)
     if eventName == "UNIT_COMBAT" then
         handleDamage(unit, ...)
     elseif eventName == "NAME_PLATE_UNIT_ADDED" then
+        trace("PLATE_ADDED", unit)
         trackUnit(unit)
     elseif eventName == "NAME_PLATE_UNIT_REMOVED" and not secret(unit) then
+        trace("PLATE_REMOVED", unit)
         local record = tracked[unit]
         if record then
+            -- A hidden plate can still expose its final coordinates.
+            if record.plate then
+                local x, y = readPlatePosition(record.plate)
+                if x and y then record.lastX, record.lastY = x, y end
+            end
             record.active = false
-            record.listener:UnregisterEvent("UNIT_COMBAT")
-            record.plate = nil
+            record.draining = true
+            local generation = record.generation
+            -- Killing blows can arrive just after NAME_PLATE_UNIT_REMOVED.
+            C_Timer.After(removalGrace, function()
+                if record.generation ~= generation or record.active then return end
+                record.draining = false
+                record.listener:UnregisterEvent("UNIT_COMBAT")
+                record.plate = nil
+                trace("LISTENER_STOPPED", unit, "grace period elapsed")
+            end)
         end
         for _, label in ipairs(labels) do
-            if label.anchor and label.unit == unit then
-                label.active = false; label.text:Hide(); label.anchor = nil
+            if label.active and label.anchor and label.unit == unit then
+                if record and record.lastX and record.lastY then
+                    label.x, label.y = record.lastX + label.x, record.lastY + label.y
+                    label.anchor = nil
+                    -- Detach immediately, before the hidden plate is recycled.
+                    local ok, positioned = pcall(positionLabel, label)
+                    if not ok or not positioned then label.active = false; label.text:Hide() end
+                else
+                    label.retired = true
+                    trace("RETAINED_HIDDEN_ANCHOR", unit, "coordinates unavailable")
+                end
             end
         end
     elseif eventName == "PLAYER_TARGET_CHANGED" then
-        -- Only legacy target-anchored hits depend on the selected target.
+        trace("TARGET_CHANGED", "target")
+        -- Changing the selected unit does not invalidate the old frame anchor.
         for _, label in ipairs(labels) do
             if label.anchor and label.unit == "target" then
-                label.active = false; label.text:Hide(); label.anchor = nil
+                label.retired = true
             end
         end
     elseif eventName == "PLAYER_ENTERING_WORLD" and C_NamePlate and C_NamePlate.GetNamePlates then
@@ -208,6 +296,15 @@ damageEvents:SetScript("OnEvent", function(_, eventName, unit, ...)
                 if readable then trackUnit(token) end
             end
         end
+    end
+end)
+local positionPoll = 0
+damageEvents:SetScript("OnUpdate", function(_, elapsed)
+    positionPoll = positionPoll + elapsed
+    if positionPoll < 0.1 then return end
+    positionPoll = 0
+    for unit, record in pairs(tracked) do
+        if record.active then unitPosition(unit) end
     end
 end)
 
@@ -269,7 +366,7 @@ end)
 
 -- Bounded metadata-only diagnostics. Never stringify or inspect secret data.
 local watcher = CreateFrame("Frame")
-local watching, generation = false, 0
+local generation = 0
 local buckets, received, restricted = {}, 0, 0
 local function readable(value)
     if secret(value) then return "<secret>" end
@@ -284,6 +381,7 @@ local function stop()
 end
 watcher:SetScript("OnEvent", function(_, _, unit, event, flags, amount, school)
     if not watching then return end
+    trace("RAW_TARGET", unit, event)
     received = received + 1
     if secret(unit) or secret(event) or secret(flags) or secret(amount) or secret(school) then
         restricted = restricted + 1
@@ -324,11 +422,12 @@ SlashCmdList.DAMAGECOLOR = function(message)
         say("Damage overlay disabled.")
     elseif command == "watch" then
         buckets, received, restricted = {}, 0, 0
+        traceLog = {}
         generation = generation + 1
         local current = generation
         watching = true
         watcher:RegisterUnitEvent("UNIT_COMBAT", "target")
-        say("Watching your target for 20 seconds; all attackers may be included.")
+        say("Tracing target events, live nameplate events, and removal order for 20 seconds. Kill one enemy, then /dc report.")
         C_Timer.After(20, function()
             if watching and generation == current then stop() end
         end)
@@ -345,10 +444,15 @@ SlashCmdList.DAMAGECOLOR = function(message)
         say("Live events=" .. displayStats.received .. "; shown=" .. displayStats.shown .. "; skipped=" .. displayStats.skipped)
         say("Last display skip: " .. displayStats.last)
         say("Target events=" .. received .. "; events containing secrets=" .. restricted)
+        say("Combat-log probe disabled: the client blocked its Blizzard-only event registration.")
         local keys = {}
         for key in pairs(buckets) do keys[#keys + 1] = key end
         table.sort(keys)
         for _, key in ipairs(keys) do say(buckets[key] .. " x " .. key) end
+        if #traceLog > 0 then
+            say("Recent event order (no damage amounts recorded):")
+            for _, line in ipairs(traceLog) do say(line) end
+        end
     else
         say("/dc settings | /dc on | /dc off | /dc preview | /dc watch | /dc stop | /dc report")
         say("Overlay includes all attackers on visible enemy nameplates.")
