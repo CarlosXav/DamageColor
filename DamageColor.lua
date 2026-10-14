@@ -1,16 +1,6 @@
 local _, addon = ...
 
--- School masks are exact matches; hybrids deliberately use the fallback.
-addon.colors = {
-    [1] = { 1, 0.20, 0.20 },       -- Physical abilities, including bleeds.
-    [2] = { 1, 0.95, 0.60 },       -- Holy.
-    [4] = { 1, 0.50, 0.10 },       -- Fire.
-    [8] = { 0.25, 1, 0.30 },       -- Nature.
-    [16] = { 0.55, 0.85, 1 },      -- Frost.
-    [32] = { 0.45, 0.35, 0.85 },   -- Shadow.
-    [64] = { 0.85, 0.40, 1 },      -- Arcane.
-}
-local white, yellow = { 1, 1, 1 }, { 1, 1, 0 }
+local white = { 1, 1, 1 }
 local function secret(value)
     return issecretvalue and issecretvalue(value)
 end
@@ -20,9 +10,9 @@ function addon.GetColor(school, isAutoAttack)
         return unpack(white)
     end
     if secret(school) or type(school) ~= "number" then
-        return unpack(yellow)
+        return unpack(addon.colors[0])
     end
-    return unpack(addon.colors[school] or yellow)
+    return unpack(addon.colors[school] or addon.colors[0])
 end
 
 local function say(message)
@@ -72,7 +62,7 @@ damageEvents:SetScript("OnEvent", function(_, _, unit, event, flags, amount, sch
     if type(amount) ~= "number" or amount <= 0 then return end
     sequence = sequence + 1
     local label = labels[(sequence - 1) % #labels + 1]
-    label.age, label.active = 0, true
+    label.age, label.active, label.school = 0, true, school
     label.x = ((sequence - 1) % 5 - 2) * 65
     label.text:SetText(tostring(amount))
     label.text:SetTextColor(addon.GetColor(school))
@@ -94,14 +84,28 @@ local samples = {
     { "Frost", 16 }, { "Nature", 8 }, { "Holy", 2 },
     { "Other / mixed school", 20 },
 }
+local previewLabels = {}
 for i, sample in ipairs(samples) do
     local text = preview:CreateFontString(nil, "OVERLAY")
     text:SetFont(STANDARD_TEXT_FONT, 22, "OUTLINE")
     text:SetPoint("TOP", preview, "TOP", 0, -(i - 1) * 30)
     text:SetText(sample[1] .. "  123")
     text:SetTextColor(addon.GetColor(sample[2], sample[3]))
+    previewLabels[i] = text
+end
+function addon.RefreshDisplayColors()
+    for i, sample in ipairs(samples) do
+        previewLabels[i]:SetTextColor(addon.GetColor(sample[2], sample[3]))
+    end
+    for _, label in ipairs(labels) do
+        if label.active then label.text:SetTextColor(addon.GetColor(label.school)) end
+    end
 end
 local previewTime = 0
+function addon.ShowPreview()
+    previewTime = 0
+    preview:Show()
+end
 preview:SetScript("OnUpdate", function(self, elapsed)
     previewTime = previewTime + elapsed
     if previewTime >= 10 then self:Hide() end
@@ -142,9 +146,10 @@ SLASH_DAMAGECOLOR1 = "/damagecolor"
 SLASH_DAMAGECOLOR2 = "/dc"
 SlashCmdList.DAMAGECOLOR = function(message)
     local command = message:match("^%s*(%S*)"):lower()
-    if command == "preview" then
-        previewTime = 0
-        preview:Show()
+    if command == "" or command == "config" or command == "settings" then
+        addon.OpenSettings()
+    elseif command == "preview" then
+        addon.ShowPreview()
         say("Synthetic palette preview for 10 seconds; physical red is a planned color only.")
     elseif command == "on" then
         enabled = true
@@ -179,7 +184,7 @@ SlashCmdList.DAMAGECOLOR = function(message)
         table.sort(keys)
         for _, key in ipairs(keys) do say(buckets[key] .. " x " .. key) end
     else
-        say("/dc on | /dc off | /dc preview | /dc watch | /dc stop | /dc report")
+        say("/dc settings | /dc on | /dc off | /dc preview | /dc watch | /dc stop | /dc report")
         say("Magic overlay includes all attackers on your target; physical text remains native.")
     end
 end
