@@ -18,9 +18,14 @@ Addon interface: **16001**.
 | Frost | Light blue |
 | Nature | Green |
 | Holy | Light yellow |
+| Frostfire | Frost light-blue center with Fire orange outline |
 | Other or unknown | Default yellow |
 
-Mixed-school damage provisionally uses yellow. **Revisit Frostfire at the end.**
+Frostfire (school mask 20) has its own color and edge settings. Other mixed schools
+use the Other fallback. Frostfire defaults to the original Frost color in the
+center and the original Fire color on an outline of thickness 1.5. The previous
+inherited fallback defaults migrate once; independently customized styles are
+preserved. Frostfire remains independent of changes to Fire, Frost, and Other.
 
 ## Install and check this build
 
@@ -36,8 +41,8 @@ Enable DamageColor in the character-selection AddOns list, then log in or reload
 - `/dc report`: print the client build, counts, event types, flags, and school masks.
 
 Click a school's button to open the game color picker. Each of the seven schools
-has its own color; Other / mixed schools controls the fallback, including
-Frostfire. Swatches, hex codes, previews, and active overlay numbers update as you
+has its own color, and Frostfire has a separate entry. Other / mixed schools
+controls the remaining fallback. Swatches, hex codes, previews, and active overlay numbers update as you
 pick. Cancel restores the color from before opening the picker. Reset colors
 restores the original palette. Choices are saved account-wide in `DamageColorDB`
 across reloads and logins. The Physical color applies to auto-attacks, physical
@@ -50,6 +55,26 @@ the game's default font. The Text size slider ranges from 12 to 96 UI units
 active numbers and the palette preview immediately and are saved account-wide.
 Reset font / size restores Game default and 48 without changing colors. Scroll
 the settings panel to reach all controls on smaller screens.
+
+Under **Outline and glow**, choose a damage school (or Other for mixed schools),
+then choose None, Outline, or Soft glow. Each school saves its own edge color
+and thickness / glow radius (1–6 UI units, in quarter-unit steps). None removes
+the edge entirely. The default is None: no outline or glow, except Frostfire's
+orange outline.
+Previous default outlines and white glows are upgraded once; customized
+edge styles are preserved. Reset selected
+edge restores only that school's edge defaults; text colors are independent.
+Changes update active numbers and `/dc preview` immediately, including critical
+size, pop, and fade. The edge color picker supports Cancel just like text colors.
+
+The **Number preview** inside the settings menu shows a sample using the school
+selected under Outline and glow. It updates immediately with text color, font,
+size, and edge changes. Check **Critical hit** to preview twice the normal size.
+
+Colored outlines use offset glyph layers because the native outline flags have
+fixed black weights. Soft glow uses three translucent rings to approximate a
+blurred halo; it is not a true Gaussian blur. Layers are allocated only as needed
+and reused with the damage-number pool (8 for outline, up to 24 for glow).
 
 **Hide Blizzard damage** is checked by default and saved account-wide. It hides
 native outgoing damage numbers using `floatingCombatTextCombatDamage_v2`, with
@@ -121,7 +146,7 @@ white and native physical skills yellow, while both use Physical (red by
 default) on our overlay. The overlay replaces the display when native damage
 is hidden; it does not recolor Blizzard's individual numbers.
 
-Unknown nonnegative school masks and mixed schools use the Other color (yellow
+Unknown nonnegative school masks and mixed schools other than Frostfire use the Other color (yellow
 by default). Events with secret amounts, secret schools, or unavailable schools
 are skipped.
 

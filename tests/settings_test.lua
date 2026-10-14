@@ -6,7 +6,13 @@ for _, name in ipairs({ "SetSize", "SetPoint", "SetAllPoints", "ClearAllPoints",
     "SetMinMaxValues", "SetValueStep", "SetObeyStepOnDrag" }) do
     methods[name] = function() end
 end
-function methods:SetFont(path, size) self.fontPath, self.fontSize = path, size; return true end
+function methods:SetFont(path, size, flags) self.fontPath, self.fontSize, self.fontFlags = path, size, flags; return true end
+function methods:GetText() return self.text end
+function methods:GetParent() return self.parent end
+function methods:GetStringWidth() return #(self.text or "") * (self.fontSize or 12) * 0.6 end
+function methods:GetStringHeight() return self.fontSize or 12 end
+function methods:SetScale(scale) self.scale = scale end
+function methods:SetMinMaxValues(low, high) self.minimum, self.maximum = low, high end
 function methods:OverrideText(text) self.text = text end
 function methods:SetupMenu(generator)
     self.choices = {}
@@ -36,7 +42,10 @@ function methods:SetScript(name, fn) self.scripts[name] = fn end
 function methods:RegisterEvent(event) self.events[event] = true end
 function methods:RegisterUnitEvent(event, unit) self.events[event] = unit end
 function methods:UnregisterEvent(event) self.events[event] = nil end
-function methods:SetText(value) self.text = value end
+function methods:SetText(value)
+    if self.kind == "FontString" then assert(self.fontPath, "FontString:SetText(): Font not set") end
+    self.text = value
+end
 function methods:SetTextColor(...) self.color = { ... } end
 function methods:SetColorTexture(...) self.color = { ... } end
 function methods:Show()
@@ -49,11 +58,16 @@ function methods:Hide()
     if wasShown and self.scripts.OnHide then self.scripts.OnHide(self) end
 end
 function CreateFrame(kind, name, parent, template)
-    local frame = setmetatable({ scripts = {}, events = {}, template = template, parent = parent }, { __index = methods })
+    local frame = setmetatable({ scripts = {}, events = {}, template = template, parent = parent, kind = kind }, { __index = methods })
     frames[#frames + 1] = frame
     return frame
 end
-function methods:CreateFontString() return CreateFrame("FontString", nil, self) end
+function methods:CreateFontString(_, layer, fontObject)
+    local text = CreateFrame("FontString", nil, self)
+    text.drawLayer = layer
+    if fontObject then text.fontPath = "inherited-font" end
+    return text
+end
 function methods:CreateTexture() return CreateFrame("Texture") end
 UIParent = CreateFrame("Frame")
 UIParent.scale = 0.8
@@ -108,7 +122,7 @@ local function loadAddon(saved)
     DamageColorDB = saved
     frames = {}
     local addon = {}
-    for _, file in ipairs({ "Palette.lua", "NativeDamage.lua", "DamageColor.lua", "Settings.lua" }) do
+    for _, file in ipairs({ "Palette.lua", "TextEffects.lua", "NativeDamage.lua", "DamageColor.lua", "Settings.lua" }) do
         assert(loadfile(file))("DamageColor", addon)
     end
     for _, frame in ipairs(frames) do
@@ -135,7 +149,10 @@ rgb(addon.colors[2], 0.1, 0.2, 0.3) -- Reload preserves the saved color.
 local r, g, b = addon.GetColor(2)
 rgb({ r, g, b }, 0.1, 0.2, 0.3)
 addon.SetColor(0, 0.4, 0.5, 0.6)
-rgb({ addon.GetColor(20) }, 0.4, 0.5, 0.6) -- Frostfire fallback.
+rgb({ addon.GetColor(6) }, 0.4, 0.5, 0.6) -- Other mixed-school fallback.
+addon.SetColor(20, 0.9, 0.3, 0.6)
+rgb({ addon.GetColor(20) }, 0.9, 0.3, 0.6)
+rgb({ addon.GetColor(6) }, 0.4, 0.5, 0.6) -- Frostfire changes must not affect Other.
 rgb({ addon.GetColor(1) }, 1, 0.20, 0.20) -- Physical hits, including swings, share red.
 click("Holy")
 local staleCancel = ColorPickerFrame.info.cancelFunc
@@ -154,7 +171,7 @@ addon.SetColor(2, 0.2, 0.3, 0.4)
 damageFrame.scripts.OnEvent(damageFrame, "UNIT_COMBAT", "target", "WOUND", "", 456, 2)
 local liveNumber
 for _, frame in ipairs(frames) do
-    if frame.text == "456" then liveNumber = frame end
+    if frame.text == "456" and frame.drawLayer == "OVERLAY" then liveNumber = frame end
 end
 assert(liveNumber and liveNumber.shown, "Holy damage must create a live number")
 rgb(liveNumber.color, 0.2, 0.3, 0.4)
@@ -162,7 +179,7 @@ addon.SetColor(2, 0.5, 0.6, 0.7)
 rgb(liveNumber.color, 0.5, 0.6, 0.7)
 damageFrame.scripts.OnEvent(damageFrame, "UNIT_COMBAT", "target", "WOUND", "", 789, 1)
 local physical
-for _, frame in ipairs(frames) do if frame.text == "789" then physical = frame end end
+for _, frame in ipairs(frames) do if frame.text == "789" and frame.drawLayer == "OVERLAY" then physical = frame end end
 assert(physical and physical.shown, "Physical hits must appear on the overlay")
 rgb(physical.color, 1, 0.20, 0.20)
 local originalX, originalY = physical.point[4], physical.point[5]
@@ -200,7 +217,7 @@ issecretvalue = function(value) return value == secretPosition end
 plate.x, plate.y = secretPosition, secretPosition
 damageFrame.scripts.OnEvent(damageFrame, "UNIT_COMBAT", "target", "WOUND", "", 904, 1)
 local anchored
-for _, frame in ipairs(frames) do if frame.text == "904" then anchored = frame end end
+for _, frame in ipairs(frames) do if frame.text == "904" and frame.drawLayer == "OVERLAY" then anchored = frame end end
 assert(anchored and anchored.shown, "Secret geometry must not discard a readable damage event")
 assert(anchored.point[2] == plate, "Secret geometry must use a direct frame anchor")
 damageFrame.scripts.OnEvent(damageFrame, "PLAYER_TARGET_CHANGED")
@@ -234,7 +251,7 @@ local function hit(unit, amount, flags, school)
     frame.scripts.OnEvent(frame, "UNIT_COMBAT", unit, "WOUND", flags or "", amount, school or 4)
 end
 local function number(amount)
-    for _, frame in ipairs(frames) do if frame.text == tostring(amount) then return frame end end
+    for _, frame in ipairs(frames) do if frame.text == tostring(amount) and frame.drawLayer == "OVERLAY" then return frame end end
 end
 hit("nameplate2", 1001)
 assert(number(1001) and number(1001).shown, "Off-target mouseover damage must display")
@@ -330,8 +347,8 @@ issecretvalue = nil
 -- Settings controls apply font and size immediately and preserve crit scaling.
 local dropdown, slider
 for _, frame in ipairs(frames) do
-    if frame.template == "WowStyle1DropdownTemplate" then dropdown = frame end
-    if frame.template == "OptionsSliderTemplate" then slider = frame end
+    if frame.choices and frame.choices.arial then dropdown = frame end
+    if frame.template == "OptionsSliderTemplate" and frame.maximum == 96 then slider = frame end
 end
 assert(dropdown and slider, "Missing font or size control")
 dropdown.choices.arial()
@@ -364,6 +381,104 @@ addon.SetColor(2, math.huge, 0, 0)
 rgb(addon.colors[2], 1, 0.95, 0.60)
 
 -- Hide-native setting defaults on, restores prior values, and survives reload.
+addon = loadAddon(nil)
+rgb({ addon.GetColor(20) }, 0.55, 0.85, 1)
+assert(addon.GetTextStyle(20).mode == "outline")
+rgb(addon.GetTextStyle(20).color, 1, 0.5, 0.1)
+addon.ResetTextStyle(20)
+assert(addon.GetTextStyle(20).mode == "outline", "Frostfire reset must restore its orange outline")
+addon = loadAddon({ colors = { [20] = { 1, 1, 0 } }, textStyles = {
+    [20] = { mode = "none", thickness = 1.5, color = { 1, 1, 1 } },
+}, textStyleDefaultsVersion = 3 })
+rgb({ addon.GetColor(20) }, 0.55, 0.85, 1)
+assert(addon.GetTextStyle(20).mode == "outline", "Previous inherited Frostfire defaults must migrate")
+addon.SetColor(20, 0.2, 0.3, 0.4)
+addon.SetTextStyle(20, "none", 2, 0.7, 0.1, 0.1)
+addon = loadAddon(DamageColorDB)
+rgb({ addon.GetColor(20) }, 0.2, 0.3, 0.4)
+assert(addon.GetTextStyle(20).mode == "none", "Explicit Frostfire customizations must survive reload")
+-- Each school's edge is independent, saved, and can be completely removed.
+local edgeMode, edgeSchool, edgeWidth
+for _, frame in ipairs(frames) do
+    if frame.choices and frame.choices.glow then edgeMode = frame end
+    if frame.choices and frame.choices[2] then edgeSchool = frame end
+    if frame.template == "OptionsSliderTemplate" and frame.maximum == 6 then edgeWidth = frame end
+end
+assert(edgeMode and edgeSchool and edgeWidth, "Missing per-school edge controls")
+edgeSchool.choices[2]()
+edgeMode.choices.glow()
+edgeWidth:SetValue(3)
+addon.SetTextStyle(2, "glow", 3, 0.2, 0.4, 0.8)
+assert(addon.GetTextStyle(1).mode == "none", "Changing Holy must not affect Physical")
+for _, frame in ipairs(frames) do
+    if type(frame.text) == "string" and frame.text:find("Edge color", 1, true) and frame.scripts.OnClick then
+        frame.scripts.OnClick(frame)
+        break
+    end
+end
+ColorPickerFrame.rgb = { 1, 0, 0 }
+ColorPickerFrame.info.swatchFunc()
+rgb(addon.GetTextStyle(2).color, 1, 0, 0)
+ColorPickerFrame.info.cancelFunc()
+rgb(addon.GetTextStyle(2).color, 0.2, 0.4, 0.8)
+local effectText = UIParent:CreateFontString(nil, "OVERLAY")
+addon.ApplyFont(effectText, 48)
+effectText:SetText("12345")
+effectText:Show()
+addon.UpdateTextEffect(effectText, 2, 48, 0.5)
+local function effectLayers()
+    local list = {}
+    for _, frame in ipairs(frames) do
+        if frame.drawLayer == "ARTWORK" and frame.point and frame.point[2] == effectText then list[#list + 1] = frame end
+    end
+    return list
+end
+local layers = effectLayers()
+assert(#layers == 24 and effectText.fontFlags == "", "Glow must have layered glyphs without a native black outline")
+rgb(layers[1].color, 0.2, 0.4, 0.8)
+assert(layers[1].alpha > layers[24].alpha and layers[1].alpha < 0.5, "Glow must soften outward and follow fade alpha")
+addon.SetTextStyle(2, "none", 3, 0.2, 0.4, 0.8)
+addon.UpdateTextEffect(effectText, 2, 48, 1)
+for _, layer in ipairs(layers) do assert(not layer.shown, "None must remove all edge layers") end
+addon.SetTextStyle(2, "outline", 2, 0.8, 0.1, 0.3)
+addon.UpdateTextEffect(effectText, 2, 96, 0.4)
+local shown = 0
+for _, layer in ipairs(layers) do if layer.shown then
+    shown = shown + 1
+    assert(layer.fontSize == 96 and layer.alpha == 0.4, "Outline must match animated font size and fade")
+end end
+assert(shown == 8 and layers[1].point[4] == 2, "Outline must use selected thickness")
+addon.HideDamageText(effectText)
+for _, layer in ipairs(layers) do assert(not layer.shown, "Pooled text must hide its edge layers") end
+addon = loadAddon(DamageColorDB)
+assert(addon.GetTextStyle(2).mode == "outline" and addon.GetTextStyle(2).thickness == 2)
+rgb(addon.GetTextStyle(2).color, 0.8, 0.1, 0.3)
+addon.SetTextStyle(2, "invalid", 1, 0, 0, 0)
+assert(addon.GetTextStyle(2).thickness == 2, "Invalid edge styles must be rejected")
+addon = loadAddon({ textStyles = { [2] = { mode = "glow", thickness = 0/0, color = { 1, 1, 1 } } } })
+assert(addon.GetTextStyle(2).mode == "none" and addon.GetTextStyle(2).thickness == 1.5,
+    "Malformed saved edge settings must recover to defaults")
+rgb(addon.GetTextStyle(2).color, 1, 1, 1)
+addon = loadAddon({ textStyles = {
+    [1] = { mode = "outline", thickness = 1, color = { 0, 0, 0 } },
+    [2] = { mode = "outline", thickness = 2, color = { 0.8, 0.1, 0.3 } },
+} })
+assert(addon.GetTextStyle(1).mode == "none", "Previous default must migrate to no edge")
+rgb(addon.GetTextStyle(1).color, 1, 1, 1)
+assert(addon.GetTextStyle(2).mode == "outline" and addon.GetTextStyle(2).thickness == 2,
+    "Customized edges must survive default migration")
+addon.SetTextStyle(1, "outline", 1, 0, 0, 0)
+addon = loadAddon(DamageColorDB)
+assert(addon.GetTextStyle(1).mode == "outline", "Migration must not repeat after a deliberate selection")
+addon.ResetTextStyle(1)
+assert(addon.GetTextStyle(1).mode == "none" and addon.GetTextStyle(1).thickness == 1.5)
+
+addon = loadAddon({ textStyleDefaultsVersion = 2, textStyles = {
+    [1] = { mode = "glow", thickness = 1.5, color = { 1, 1, 1 } },
+    [2] = { mode = "glow", thickness = 3, color = { 1, 0.5, 0 } },
+} })
+assert(addon.GetTextStyle(1).mode == "none", "Previous default white glow must become None")
+assert(addon.GetTextStyle(2).mode == "glow", "Custom glow must be preserved")
 cvars = { floatingCombatTextCombatDamage_v2 = "1" }
 addon = loadAddon(nil)
 assert(addon.hideBlizzardDamage and cvars.floatingCombatTextCombatDamage_v2 == "0")
@@ -448,4 +563,4 @@ SlashCmdList.DAMAGECOLOR("watch")
 SlashCmdList.DAMAGECOLOR("stop")
 assert(forbiddenCalls == 0, "Watch must not invoke Blizzard-only combat-log APIs")
 methods.RegisterEvent = register
-print("PASS: appearance, crits, colors, AoE, late killing blows, death linger, recycled plates, native visibility, persistence, and retry")
+print("PASS: per-school outlines/glow/none, color cancel, thickness, layer cleanup, persistence, animation, AoE, death linger, and native visibility")

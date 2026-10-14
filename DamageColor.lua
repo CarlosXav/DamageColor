@@ -121,7 +121,9 @@ local function positionLabel(label)
         scale = 1
     end
     addon.ApplyFont(label.text, label.baseSize * scale)
-    label.text:SetAlpha(math.min(1, (labelLifetime - label.age) / 0.4))
+    local alpha = math.min(1, (labelLifetime - label.age) / 0.4)
+    label.text:SetAlpha(alpha)
+    addon.UpdateTextEffect(label.text, label.school, label.baseSize * scale, alpha)
     return true
 end
 live:SetScript("OnUpdate", function(self, elapsed)
@@ -131,13 +133,13 @@ live:SetScript("OnUpdate", function(self, elapsed)
             label.age = label.age + elapsed
             if label.age >= labelLifetime then
                 label.active = false
-                label.text:Hide()
+                addon.HideDamageText(label.text)
             else
                 any = true
                 local ok, positioned = pcall(positionLabel, label)
                 if not ok or not positioned then
                     label.active = false
-                    label.text:Hide()
+                    addon.HideDamageText(label.text)
                     skipped("active nameplate anchor unavailable")
                 end
             end
@@ -188,7 +190,7 @@ local function handleDamage(unit, event, flags, amount, school)
     local ok, positioned = pcall(positionLabel, label)
     if not ok or not positioned then
         label.active = false
-        label.text:Hide()
+        addon.HideDamageText(label.text)
         skipped("cannot anchor damage label")
         return
     end
@@ -216,7 +218,7 @@ local function trackUnit(unit)
         for _, label in ipairs(labels) do
             if label.active and label.retired and label.anchor == plate then
                 label.active = false
-                label.text:Hide()
+                addon.HideDamageText(label.text)
                 label.anchor = nil
                 trace("REUSED_ANCHOR_CLEARED", unit)
             end
@@ -273,7 +275,7 @@ damageEvents:SetScript("OnEvent", function(_, eventName, unit, ...)
                     label.anchor = nil
                     -- Detach immediately, before the hidden plate is recycled.
                     local ok, positioned = pcall(positionLabel, label)
-                    if not ok or not positioned then label.active = false; label.text:Hide() end
+                    if not ok or not positioned then label.active = false; addon.HideDamageText(label.text) end
                 else
                     label.retired = true
                     trace("RETAINED_HIDDEN_ANCHOR", unit, "coordinates unavailable")
@@ -317,7 +319,8 @@ local samples = {
     { "Physical skill / bleed", 1 },
     { "Arcane", 64 }, { "Fire", 4 }, { "Shadow", 32 },
     { "Frost", 16 }, { "Nature", 8 }, { "Holy", 2 },
-    { "Other / mixed school", 20 },
+    { "Frostfire", 20 },
+    { "Other / mixed school", 6 },
 }
 local previewLabels = {}
 for i, sample in ipairs(samples) do
@@ -326,11 +329,13 @@ for i, sample in ipairs(samples) do
     text:SetPoint("TOP", preview, "TOP", 0, -(i - 1) * 60)
     text:SetText(sample[1] .. "  123")
     text:SetTextColor(addon.GetColor(sample[2], sample[3]))
+    addon.UpdateTextEffect(text, sample[2], addon.appearance.size, 1)
     previewLabels[i] = text
 end
 function addon.RefreshDisplayColors()
     for i, sample in ipairs(samples) do
         previewLabels[i]:SetTextColor(addon.GetColor(sample[2], sample[3]))
+        addon.UpdateTextEffect(previewLabels[i], sample[2], addon.appearance.size, 1)
     end
     for _, label in ipairs(labels) do
         if label.active then label.text:SetTextColor(addon.GetColor(label.school)) end
@@ -341,6 +346,7 @@ function addon.RefreshTextAppearance()
     preview:SetSize(720, #samples * spacing)
     for i, text in ipairs(previewLabels) do
         addon.ApplyFont(text, addon.appearance.size)
+        addon.UpdateTextEffect(text, samples[i][2], addon.appearance.size, 1)
         text:ClearAllPoints()
         text:SetPoint("TOP", preview, "TOP", 0, -(i - 1) * spacing)
     end
@@ -350,7 +356,7 @@ function addon.RefreshTextAppearance()
             label.baseSize = addon.appearance.size * (label.critical and 2 or 1)
             label.y = label.y + (label.baseSize - oldSize) * 0.75
             local ok, positioned = pcall(positionLabel, label)
-            if not ok or not positioned then label.active = false; label.text:Hide() end
+            if not ok or not positioned then label.active = false; addon.HideDamageText(label.text) end
         end
     end
 end
@@ -416,7 +422,7 @@ SlashCmdList.DAMAGECOLOR = function(message)
         addon.ApplyNativeDamageSetting()
         for _, label in ipairs(labels) do
             label.active = false
-            label.text:Hide()
+            addon.HideDamageText(label.text)
         end
         live:Hide()
         say("Damage overlay disabled.")
