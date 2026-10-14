@@ -10,7 +10,7 @@ Addon interface: **16001**.
 
 | Damage type | Color |
 | --- | --- |
-| Auto-attacks | Red on our overlay; native numbers unchanged |
+| Auto-attacks | Red on our overlay |
 | Physical abilities and bleeds | Red |
 | Arcane | Pinkish purple |
 | Fire | Orange |
@@ -43,6 +43,23 @@ restores the original palette. Choices are saved account-wide in `DamageColorDB`
 across reloads and logins. The Physical color applies to auto-attacks, physical
 skills, and bleeds alike on the overlay; its default is red.
 
+The Font dropdown offers Game default, Friz Quadrata, Arial Narrow, Morpheus,
+and Skurri, using fonts supplied by the client. Missing font files fall back to
+the game's default font. The Text size slider ranges from 12 to 96 UI units
+(default 48); critical hits stay twice the selected size. Both controls update
+active numbers and the palette preview immediately and are saved account-wide.
+Reset font / size restores Game default and 48 without changing colors. Scroll
+the settings panel to reach all controls on smaller screens.
+
+**Hide Blizzard damage** is checked by default and saved account-wide. It hides
+native outgoing damage numbers using `floatingCombatTextCombatDamage_v2`, with
+the legacy CVar as a fallback. Unchecking it or using `/dc off` restores the
+native setting from before suppression; `/dc on` reapplies the saved preference.
+Logout and reload attempt restoration too. If a change is blocked, it retries
+on world entry and after combat; `/dc report` includes the suppression status.
+Healing text is unaffected. When hiding is enabled, enemies without accessible
+nameplates have no damage numbers from either display.
+
 For the compatibility check, attack an isolated enemy with auto-attacks only,
 then run `/dc watch` and save `/dc report` after it finishes. Repeat using Heroic
 Strike. The diagnostic does not read combat logs or collect damage amounts;
@@ -53,7 +70,10 @@ casts and AoE hits on enemies other than your selected target. All attackers
 are included. Known friendly units are excluded using their readable reaction
 when the plate appears. Enable enemy nameplates (normally **V**) to see the overlay.
 Each number grows quickly to 150% size, settles, and fades after one second,
-with only a little upward drift. Numbers capture the nameplate's screen position
+with the selected normal text size (48 UI units by default). Hits flagged
+`CRITICAL` are twice the normal size throughout the animation (default peak
+144 versus 72). The palette preview uses the selected font and text size.
+Numbers drift upward slightly and capture the nameplate's screen position
 at impact and finish there when coordinates are readable. If the client hides
 coordinates but exposes the frame, numbers anchor directly above the plate and
 clear when that plate is removed to avoid following a reused plate. Switching
@@ -70,11 +90,12 @@ periodic hits appear only if the client delivers an event. Up to 64 numbers are
 displayed at once; new hits replace the
 oldest when full. The overlay is enabled at each login or reload.
 
-Blizzard's native numbers and settings remain unchanged. **Hits may appear
-twice:** once in the native display and once in the colored overlay. Native
-auto-attacks remain white and native physical skills remain yellow, while both
-use Physical (red by default) on our overlay. This is an additive prototype,
-not an in-place recolor of Blizzard's numbers.
+Native damage is hidden by default. If Hide Blizzard damage is unchecked and
+the original native display was enabled, **hits may appear twice:** once in
+the native display and once in the colored overlay. Native auto-attacks remain
+white and native physical skills yellow, while both use Physical (red by
+default) on our overlay. The overlay replaces the display when native damage
+is hidden; it does not recolor Blizzard's individual numbers.
 
 Unknown nonnegative school masks and mixed schools use the Other color (yellow
 by default). Events with secret amounts, secret schools, or unavailable schools

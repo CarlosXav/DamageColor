@@ -2,10 +2,26 @@
 local frames, opened = {}, nil
 local methods = {}
 for _, name in ipairs({ "SetSize", "SetPoint", "SetAllPoints", "ClearAllPoints",
-    "SetWidth", "SetJustifyH", "SetFrameStrata" }) do
+    "SetWidth", "SetJustifyH", "SetFrameStrata", "SetScrollChild",
+    "SetMinMaxValues", "SetValueStep", "SetObeyStepOnDrag" }) do
     methods[name] = function() end
 end
-function methods:SetFont(_, size) self.fontSize = size end
+function methods:SetFont(path, size) self.fontPath, self.fontSize = path, size; return true end
+function methods:OverrideText(text) self.text = text end
+function methods:SetupMenu(generator)
+    self.choices = {}
+    local choices = self.choices
+    generator(self, { CreateRadio = function(_, name, selected, selectFont, key)
+        choices[key] = function() selectFont(key) end
+    end })
+end
+function methods:GetValue() return self.value end
+function methods:SetChecked(value) self.checked = value end
+function methods:GetChecked() return self.checked end
+function methods:SetValue(value)
+    self.value = value
+    if self.scripts.OnValueChanged then self.scripts.OnValueChanged(self, value) end
+end
 function methods:SetAlpha(alpha) self.alpha = alpha end
 function methods:SetPoint(...) self.point = { ... } end
 function methods:GetCenter() return self.x, self.y end
@@ -47,6 +63,14 @@ C_NamePlate = { GetNamePlateForUnit = function(unit) assert(unit == "target"); r
 STANDARD_TEXT_FONT = "test-font"
 SlashCmdList = {}
 C_Timer = { After = function() end }
+local cvars, denyCVarWrites = { floatingCombatTextCombatDamage_v2 = "1" }, false
+C_CVar = {
+    GetCVar = function(name) return cvars[name] end,
+    SetCVar = function(name, value)
+        if denyCVarWrites then error("restricted in combat") end
+        cvars[name] = value
+    end,
+}
 Settings = {
     RegisterCanvasLayoutCategory = function(panel, name)
         assert(name == "DamageColor")
@@ -78,7 +102,7 @@ local function loadAddon(saved)
     DamageColorDB = saved
     frames = {}
     local addon = {}
-    for _, file in ipairs({ "Palette.lua", "DamageColor.lua", "Settings.lua" }) do
+    for _, file in ipairs({ "Palette.lua", "NativeDamage.lua", "DamageColor.lua", "Settings.lua" }) do
         assert(loadfile(file))("DamageColor", addon)
     end
     for _, frame in ipairs(frames) do
@@ -141,10 +165,10 @@ assert(math.abs(originalX - 300) < 0.001 and math.abs(originalY - 286.5) < 0.001
 local live = physical.parent
 plate.x, plate.y = 800, 600 -- Old hits must not jump to a new target/nameplate position.
 live.scripts.OnUpdate(live, 0.08)
-assert(math.abs(physical.fontSize - 36) < 0.001, "Hit must pop to 150% size")
+assert(math.abs(physical.fontSize - 72) < 0.001, "Normal hit must pop to 150% of its doubled base size")
 assert(physical.point[4] == originalX and math.abs(physical.point[5] - originalY - 0.96) < 0.001)
 live.scripts.OnUpdate(live, 0.16)
-assert(math.abs(physical.fontSize - 24) < 0.001, "Hit must settle to normal size")
+assert(math.abs(physical.fontSize - 48) < 0.001, "Normal hit must settle to doubled size")
 live.scripts.OnUpdate(live, 0.61)
 assert(physical.alpha > 0 and physical.alpha < 1, "Hit must fade")
 live.scripts.OnUpdate(live, 0.15)
@@ -199,9 +223,9 @@ local function listener(unit)
     end
     error("Missing nameplate listener: " .. unit)
 end
-local function hit(unit, amount)
+local function hit(unit, amount, flags)
     local frame = listener(unit)
-    frame.scripts.OnEvent(frame, "UNIT_COMBAT", unit, "WOUND", "", amount, 4)
+    frame.scripts.OnEvent(frame, "UNIT_COMBAT", unit, "WOUND", flags or "", amount, 4)
 end
 local function number(amount)
     for _, frame in ipairs(frames) do if frame.text == tostring(amount) then return frame end end
@@ -231,7 +255,53 @@ assert(number(1006).shown, "Removing another plate must not hide this enemy's hi
 damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_REMOVED", "nameplate2")
 assert(not number(1006).shown, "Removing the owning plate must clear anchored hits")
 for _, frame in ipairs(frames) do assert(frame.events.UNIT_COMBAT ~= "nameplate2", "Removed plate must unsubscribe") end
+hit("nameplate3", 2000) -- Friendly damage remains filtered.
+plate.x, plate.y = 400, 300
+damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_ADDED", "nameplate1")
+hit("nameplate1", 2001, "CRITICAL")
+hit("nameplate1", 2002)
+local crit, normal = number(2001), number(2002)
+assert(crit and normal and math.abs(crit.fontSize - 2 * normal.fontSize) < 0.001,
+    "Critical must start at twice normal size")
+live.scripts.OnUpdate(live, 0.08)
+assert(math.abs(crit.fontSize - 144) < 0.001 and math.abs(normal.fontSize - 72) < 0.001,
+    "Critical must remain twice normal size during the pop")
+live.scripts.OnUpdate(live, 0.16)
+assert(math.abs(crit.fontSize - 96) < 0.001 and math.abs(normal.fontSize - 48) < 0.001,
+    "Critical must settle at 96 versus normal 48")
+-- Reuse the critical slot and ensure a normal hit does not inherit its size.
+for amount = 2101, 2164 do hit("nameplate1", amount) end
+assert(math.abs(crit.fontSize - 48 * 0.85) < 0.001, "Reused slots must reset critical sizing")
 issecretvalue, UnitCanAttack = nil, nil
+
+-- Settings controls apply font and size immediately and preserve crit scaling.
+local dropdown, slider
+for _, frame in ipairs(frames) do
+    if frame.template == "WowStyle1DropdownTemplate" then dropdown = frame end
+    if frame.template == "OptionsSliderTemplate" then slider = frame end
+end
+assert(dropdown and slider, "Missing font or size control")
+dropdown.choices.arial()
+slider:SetValue(32)
+assert(addon.appearance.font == "arial" and addon.appearance.size == 32)
+assert(DamageColorDB.appearance.font == "arial" and DamageColorDB.appearance.size == 32)
+hit("nameplate1", 3001, "CRITICAL")
+hit("nameplate1", 3002)
+assert(number(3001).fontPath == "Fonts\\ARIALN.TTF")
+assert(math.abs(number(3001).fontSize - 2 * number(3002).fontSize) < 0.001)
+slider:SetValue(40)
+assert(math.abs(number(3001).fontSize - 80 * 0.85) < 0.001, "Active crit must resize immediately")
+assert(math.abs(number(3002).fontSize - 40 * 0.85) < 0.001, "Active normal hit must resize immediately")
+addon = loadAddon(DamageColorDB)
+assert(addon.appearance.font == "arial" and addon.appearance.size == 40, "Appearance must survive reload")
+addon.SetAppearance("missing", 30)
+addon.SetAppearance("arial", 0/0)
+addon.SetAppearance("arial", 1000)
+assert(addon.appearance.size == 40, "Invalid appearance changes must be rejected")
+click("Reset font / size")
+assert(addon.appearance.font == "default" and addon.appearance.size == 48)
+addon = loadAddon({ appearance = { font = "missing", size = -10 } })
+assert(addon.appearance.font == "default" and addon.appearance.size == 48, "Invalid saved appearance must recover")
 
 addon = loadAddon({ colors = { [2] = { 0/0, 1, 1 }, [4] = { 1, -1, 0 }, [8] = "bad" } })
 rgb(addon.colors[2], 1, 0.95, 0.60)
@@ -239,4 +309,53 @@ rgb(addon.colors[4], 1, 0.50, 0.10)
 rgb(addon.colors[8], 0.25, 1, 0.30)
 addon.SetColor(2, math.huge, 0, 0)
 rgb(addon.colors[2], 1, 0.95, 0.60)
-print("PASS: settings, animation, above-plate positioning, secret geometry, mouseover/AoE, alias deduplication, friendly filtering, and plate lifecycle")
+
+-- Hide-native setting defaults on, restores prior values, and survives reload.
+cvars = { floatingCombatTextCombatDamage_v2 = "1" }
+addon = loadAddon(nil)
+assert(addon.hideBlizzardDamage and cvars.floatingCombatTextCombatDamage_v2 == "0")
+local checkbox
+for _, frame in ipairs(frames) do
+    if frame.template == "UICheckButtonTemplate" then checkbox = frame end
+end
+assert(checkbox and checkbox:GetChecked(), "Hide-native checkbox must default on")
+checkbox:SetChecked(false)
+checkbox.scripts.OnClick(checkbox)
+assert(cvars.floatingCombatTextCombatDamage_v2 == "1", "Unchecking must restore native damage")
+addon = loadAddon(DamageColorDB)
+assert(not addon.hideBlizzardDamage and cvars.floatingCombatTextCombatDamage_v2 == "1", "Unchecked preference must persist")
+addon.SetHideBlizzardDamage(true)
+assert(cvars.floatingCombatTextCombatDamage_v2 == "0")
+addon = loadAddon(DamageColorDB)
+addon.SetHideBlizzardDamage(false)
+assert(cvars.floatingCombatTextCombatDamage_v2 == "1", "Reload while hidden must retain the original baseline")
+addon.SetHideBlizzardDamage(true)
+SlashCmdList.DAMAGECOLOR("off")
+assert(cvars.floatingCombatTextCombatDamage_v2 == "1", "/dc off must restore native damage")
+SlashCmdList.DAMAGECOLOR("on")
+assert(cvars.floatingCombatTextCombatDamage_v2 == "0", "/dc on must reapply hiding")
+local function lifecycle(event)
+    for _, frame in ipairs(frames) do
+        if frame.events[event] then frame.scripts.OnEvent(frame, event) end
+    end
+end
+denyCVarWrites = true
+addon.SetHideBlizzardDamage(false)
+assert(DamageColorDB.nativeDamageRestore, "Failed restoration must keep its baseline for retry")
+denyCVarWrites = false
+lifecycle("PLAYER_REGEN_ENABLED")
+assert(cvars.floatingCombatTextCombatDamage_v2 == "1" and not DamageColorDB.nativeDamageRestore)
+addon.SetHideBlizzardDamage(true)
+lifecycle("PLAYER_LOGOUT")
+assert(cvars.floatingCombatTextCombatDamage_v2 == "1", "Logout must restore the baseline")
+assert(DamageColorDB.hideBlizzardDamage, "Restoring on logout must preserve the checkbox preference")
+cvars = { floatingCombatTextCombatDamage = "1" }
+addon = loadAddon(nil)
+assert(cvars.floatingCombatTextCombatDamage == "0", "Legacy CVar fallback must work")
+addon.SetHideBlizzardDamage(false)
+assert(cvars.floatingCombatTextCombatDamage == "1")
+cvars = { floatingCombatTextCombatDamage_v2 = "0" }
+addon = loadAddon(nil)
+addon.SetHideBlizzardDamage(false)
+assert(cvars.floatingCombatTextCombatDamage_v2 == "0", "An originally hidden native display must stay hidden")
+print("PASS: appearance, crits, colors, AoE, native checkbox/default/persistence, restoration, logout, retry, and legacy CVar")

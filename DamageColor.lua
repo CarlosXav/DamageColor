@@ -15,7 +15,7 @@ local function say(message)
     print("|cffbb66ffDamageColor:|r " .. message)
 end
 
--- An additive display: native text stays enabled.
+-- School-colored overlay; native text visibility is controlled in settings.
 -- UNIT_COMBAT has no attacker identity, so this includes all attackers.
 local live = CreateFrame("Frame", nil, UIParent)
 live:SetAllPoints(UIParent)
@@ -30,7 +30,7 @@ end
 local labels = {}
 for i = 1, 64 do
     local text = live:CreateFontString(nil, "OVERLAY")
-    text:SetFont(STANDARD_TEXT_FONT, 24, "OUTLINE")
+    addon.ApplyFont(text, addon.appearance.size)
     text:Hide()
     labels[i] = { text = text, age = 0, active = false }
 end
@@ -78,7 +78,7 @@ local function positionLabel(label)
     else
         scale = 1
     end
-    label.text:SetFont(STANDARD_TEXT_FONT, 24 * scale, "OUTLINE")
+    addon.ApplyFont(label.text, label.baseSize * scale)
     label.text:SetAlpha(math.min(1, (1.0 - label.age) / 0.3))
     return true
 end
@@ -129,9 +129,12 @@ local function handleDamage(unit, event, flags, amount, school)
     sequence = sequence + 1
     local label = labels[(sequence - 1) % #labels + 1]
     label.age, label.active, label.school = 0, true, school
+    local critical = not secret(flags) and flags == "CRITICAL"
+    label.critical = critical
+    label.baseSize = addon.appearance.size * (critical and 2 or 1)
     label.anchor, label.unit = anchor, unit
     label.x = (x or 0) + ((sequence - 1) % 3 - 1) * 36
-    label.y = (y or 0) + 36 + ((sequence - 1) % 2) * 18
+    label.y = (y or 0) + label.baseSize * 0.75 + ((sequence - 1) % 2) * 18
     label.text:SetText(tostring(amount))
     label.text:SetTextColor(addon.GetColor(school))
     local ok, positioned = pcall(positionLabel, label)
@@ -209,8 +212,8 @@ damageEvents:SetScript("OnEvent", function(_, eventName, unit, ...)
 end)
 
 local preview = CreateFrame("Frame", nil, UIParent)
-preview:SetSize(360, 300)
-preview:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
+preview:SetSize(720, 560)
+preview:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 preview:Hide()
 local samples = {
     { "Auto-attack (overlay)", 1 },
@@ -222,8 +225,8 @@ local samples = {
 local previewLabels = {}
 for i, sample in ipairs(samples) do
     local text = preview:CreateFontString(nil, "OVERLAY")
-    text:SetFont(STANDARD_TEXT_FONT, 22, "OUTLINE")
-    text:SetPoint("TOP", preview, "TOP", 0, -(i - 1) * 30)
+    addon.ApplyFont(text, addon.appearance.size)
+    text:SetPoint("TOP", preview, "TOP", 0, -(i - 1) * 60)
     text:SetText(sample[1] .. "  123")
     text:SetTextColor(addon.GetColor(sample[2], sample[3]))
     previewLabels[i] = text
@@ -234,6 +237,24 @@ function addon.RefreshDisplayColors()
     end
     for _, label in ipairs(labels) do
         if label.active then label.text:SetTextColor(addon.GetColor(label.school)) end
+    end
+end
+function addon.RefreshTextAppearance()
+    local spacing = addon.appearance.size * 1.25
+    preview:SetSize(720, #samples * spacing)
+    for i, text in ipairs(previewLabels) do
+        addon.ApplyFont(text, addon.appearance.size)
+        text:ClearAllPoints()
+        text:SetPoint("TOP", preview, "TOP", 0, -(i - 1) * spacing)
+    end
+    for _, label in ipairs(labels) do
+        if label.active then
+            local oldSize = label.baseSize
+            label.baseSize = addon.appearance.size * (label.critical and 2 or 1)
+            label.y = label.y + (label.baseSize - oldSize) * 0.75
+            local ok, positioned = pcall(positionLabel, label)
+            if not ok or not positioned then label.active = false; label.text:Hide() end
+        end
     end
 end
 local previewTime = 0
@@ -288,9 +309,13 @@ SlashCmdList.DAMAGECOLOR = function(message)
         say("Synthetic palette preview for 10 seconds; physical includes auto-attacks.")
     elseif command == "on" then
         enabled = true
+        addon.overlayEnabled = true
+        addon.ApplyNativeDamageSetting()
         say("Damage overlay enabled (all attackers on visible enemy nameplates).")
     elseif command == "off" then
         enabled = false
+        addon.overlayEnabled = false
+        addon.ApplyNativeDamageSetting()
         for _, label in ipairs(labels) do
             label.active = false
             label.text:Hide()
@@ -312,7 +337,8 @@ SlashCmdList.DAMAGECOLOR = function(message)
     elseif command == "report" then
         local version, build, _, interface = GetBuildInfo()
         say("Client " .. version .. " / " .. build .. " / interface " .. interface)
-        say("Nameplate overlay=" .. (enabled and "on" or "off") .. "; physical includes auto-attacks; native text unchanged.")
+        say("Nameplate overlay=" .. (enabled and "on" or "off") .. "; physical includes auto-attacks.")
+        say("Blizzard damage: " .. addon.nativeDamageStatus)
         local count = 0
         for _, record in pairs(tracked) do if record.active then count = count + 1 end end
         say("Tracked nameplates=" .. count)
@@ -325,6 +351,6 @@ SlashCmdList.DAMAGECOLOR = function(message)
         for _, key in ipairs(keys) do say(buckets[key] .. " x " .. key) end
     else
         say("/dc settings | /dc on | /dc off | /dc preview | /dc watch | /dc stop | /dc report")
-        say("Overlay includes all attackers on visible enemy nameplates. Native text unchanged.")
+        say("Overlay includes all attackers on visible enemy nameplates.")
     end
 end

@@ -12,6 +12,37 @@ local defaults = {
     [64] = { 0.85, 0.40, 1 },
 }
 addon.colors = {}
+addon.fonts = {
+    { key = "default", name = "Game default", path = STANDARD_TEXT_FONT },
+    { key = "friz", name = "Friz Quadrata", path = "Fonts\\FRIZQT__.TTF" },
+    { key = "arial", name = "Arial Narrow", path = "Fonts\\ARIALN.TTF" },
+    { key = "morpheus", name = "Morpheus", path = "Fonts\\MORPHEUS.TTF" },
+    { key = "skurri", name = "Skurri", path = "Fonts\\skurri.ttf" },
+}
+addon.appearance = { font = "default", size = 48 }
+addon.hideBlizzardDamage = true
+local function fontInfo(key)
+    for _, font in ipairs(addon.fonts) do if font.key == key then return font end end
+end
+local function validSize(size)
+    return type(size) == "number" and size == size and size >= 12 and size <= 96
+end
+function addon.GetFont()
+    return fontInfo(addon.appearance.font) or addon.fonts[1]
+end
+function addon.ApplyFont(text, size)
+    if text:SetFont(addon.GetFont().path, size, "OUTLINE") == false then
+        text:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE")
+    end
+end
+function addon.SetAppearance(font, size)
+    if not fontInfo(font) or not validSize(size) then return end
+    size = math.floor(size + 0.5)
+    if addon.appearance.font == font and addon.appearance.size == size then return end
+    addon.appearance.font, addon.appearance.size = font, size
+    if DamageColorDB then DamageColorDB.appearance = { font = font, size = size } end
+    if addon.OnAppearanceChanged then addon.OnAppearanceChanged() end
+end
 local function copy(color) return { color[1], color[2], color[3] } end
 local function valid(color)
     if type(color) ~= "table" then return false end
@@ -51,6 +82,15 @@ loader:SetScript("OnEvent", function(self, _, name)
         addon.colors[school] = copy(valid(color) and color or default)
         DamageColorDB.colors[school] = copy(addon.colors[school])
     end
+    local appearance = type(DamageColorDB.appearance) == "table" and DamageColorDB.appearance or {}
+    addon.appearance.font = fontInfo(appearance.font) and appearance.font or "default"
+    addon.appearance.size = validSize(appearance.size) and math.floor(appearance.size + 0.5) or 48
+    DamageColorDB.appearance = { font = addon.appearance.font, size = addon.appearance.size }
+    if type(DamageColorDB.hideBlizzardDamage) ~= "boolean" then DamageColorDB.hideBlizzardDamage = true end
+    addon.hideBlizzardDamage = DamageColorDB.hideBlizzardDamage
+    addon.ApplyNativeDamageSetting()
+    if addon.OnNativeDamageChanged then addon.OnNativeDamageChanged() end
     if addon.OnPaletteChanged then addon.OnPaletteChanged() end
+    if addon.OnAppearanceChanged then addon.OnAppearanceChanged() end
     self:UnregisterEvent("ADDON_LOADED")
 end)
