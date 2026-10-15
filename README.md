@@ -3,6 +3,13 @@
 A World of Warcraft: Forever addon that displays school-colored damage with
 impact pops above visible enemy nameplates.
 
+Missed attacks display **Miss**. Explicit `RESIST` events display **Resisted**;
+when Forever reports a resist as `MISS` with no distinguishing flags, it displays
+Miss. These messages use the independent **Miss / resist text** color and edge
+settings (white with no edge by default), included in saved style profiles.
+They use normal text size and the same placement, animation, and lifetime as hits.
+Like damage numbers, they include outcomes from all attackers.
+
 New numbers try nearby positions beside and above existing hits to avoid overlap,
 using the nearest available position and reserving room for settled text sizes
 and text edges. Brief pop animations may touch so bursts stay more compact.

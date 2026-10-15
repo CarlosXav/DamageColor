@@ -639,4 +639,40 @@ addon = loadAddon(DamageColorDB)
 assert(addon.GetTextStyle(1).mode == "outline" and not addon.ProfileIsDirty(), "Saved preset edits must persist")
 addon = loadAddon({ profiles = { Broken = { colors = false, appearance = { size = 0 / 0 } } } })
 assert(addon.LoadProfile("Broken") and addon.appearance.size == 48, "Invalid saved values must fall back safely")
+-- Miss/resist events need neither a damage amount nor a trustworthy school.
+local outcomePlate = C_NamePlate.GetNamePlateForUnit("target")
+outcomePlate.shown, outcomePlate.forbidden, outcomePlate.x, outcomePlate.y = true, false, 400, 300
+local outcomeListener
+for _, frame in ipairs(frames) do
+    if frame.events.UNIT_COMBAT == "target" then outcomeListener = frame end
+end
+local inaccessible = {}
+issecretvalue = function(v) return v == inaccessible end
+addon.SetColor(-1, 0.6, 0.7, 0.8)
+addon.SetTextStyle(-1, "glow", 2, 1, 1, 1)
+local function outcomeWord(word)
+    local count, found = 0
+    for _, frame in ipairs(frames) do
+        if frame.drawLayer == "OVERLAY" and frame.text == word and frame.shown then
+            count, found = count + 1, frame
+        end
+    end
+    return count, found
+end
+outcomeListener.scripts.OnEvent(outcomeListener, "UNIT_COMBAT", "target", "MISS", "CRITICAL", inaccessible, inaccessible)
+local count, miss = outcomeWord("Miss")
+assert(count == 1 and math.abs(miss.fontSize - 48 * 0.85) < 0.001,
+    "Miss must render at normal size even without readable amount or school")
+rgb(miss.color, 0.6, 0.7, 0.8)
+outcomeListener.scripts.OnEvent(outcomeListener, "UNIT_COMBAT", "target", "RESIST", "", 0, 2)
+assert(outcomeWord("Resisted") == 1, "Explicit resists must render automatically")
+assert(outcomeWord("Miss / Resist") == 0, "Ambiguous events must use only Miss")
+assert(addon.SaveProfile("Outcomes"))
+addon.LoadProfile("Default")
+rgb(addon.colors[-1], 1, 1, 1)
+assert(addon.LoadProfile("Outcomes") and addon.GetTextStyle(-1).mode == "glow")
+rgb(addon.colors[-1], 0.6, 0.7, 0.8)
+miss.parent.scripts.OnUpdate(miss.parent, 1.8)
+assert(outcomeWord("Miss") == 0 and outcomeWord("Resisted") == 0, "Outcome messages must expire")
+issecretvalue = nil
 print("PASS: per-school outlines/glow/none, color cancel, thickness, layer cleanup, persistence, animation, AoE, death linger, and native visibility")

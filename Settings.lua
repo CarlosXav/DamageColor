@@ -6,7 +6,7 @@ local scroll = CreateFrame("ScrollFrame", nil, canvas, "UIPanelScrollFrameTempla
 scroll:SetPoint("TOPLEFT", 0, 0)
 scroll:SetPoint("BOTTOMRIGHT", -28, 0)
 local panel = CreateFrame("Frame", nil, scroll)
-panel:SetSize(560, 1198)
+panel:SetSize(560, 1236)
 scroll:SetScrollChild(panel)
 local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 title:SetPoint("TOPLEFT", 16, -16)
@@ -55,6 +55,7 @@ local schools = {
     { 16, "Frost" }, { 8, "Nature" }, { 2, "Holy" },
     { 20, "Frostfire" },
     { 0, "Other" },
+    { -1, "Miss / resist text" },
 }
 local rows = {}
 local pickerSession
@@ -118,25 +119,25 @@ end
 local edgeSchool = 1
 local edgeNames = { none = "None", outline = "Outline", glow = "Soft glow" }
 local edgeTitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-edgeTitle:SetPoint("TOPLEFT", 16, -764)
+edgeTitle:SetPoint("TOPLEFT", 16, -802)
 edgeTitle:SetText("Outline and glow")
 local edgeSchoolDropdown = CreateFrame("DropdownButton", nil, panel, "WowStyle1DropdownTemplate")
 edgeSchoolDropdown:SetSize(350, 28)
-edgeSchoolDropdown:SetPoint("TOPLEFT", 16, -796)
+edgeSchoolDropdown:SetPoint("TOPLEFT", 16, -834)
 local edgeModeDropdown = CreateFrame("DropdownButton", nil, panel, "WowStyle1DropdownTemplate")
 edgeModeDropdown:SetSize(240, 28)
-edgeModeDropdown:SetPoint("TOPLEFT", 16, -838)
+edgeModeDropdown:SetPoint("TOPLEFT", 16, -876)
 local edgeWidthLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-edgeWidthLabel:SetPoint("TOPLEFT", 16, -882)
+edgeWidthLabel:SetPoint("TOPLEFT", 16, -920)
 local edgeWidth = CreateFrame("Slider", nil, panel, "OptionsSliderTemplate")
 edgeWidth:SetSize(320, 18)
-edgeWidth:SetPoint("TOPLEFT", 16, -910)
+edgeWidth:SetPoint("TOPLEFT", 16, -948)
 edgeWidth:SetMinMaxValues(1, 6)
 edgeWidth:SetValueStep(0.25)
 edgeWidth:SetObeyStepOnDrag(true)
 local edgeColor = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 edgeColor:SetSize(240, 28)
-edgeColor:SetPoint("TOPLEFT", 16, -952)
+edgeColor:SetPoint("TOPLEFT", 16, -990)
 edgeColor:SetScript("OnClick", function() openPicker(edgeSchool, true) end)
 local edgeSwatch = edgeColor:CreateTexture(nil, "OVERLAY")
 edgeSwatch:SetSize(24, 20)
@@ -195,8 +196,9 @@ local function refresh()
         row.sample:SetText(string.format("123  #%02X%02X%02X",
             math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5)))
     end
-    local sampleSize = addon.appearance.size * (previewCritical and 2 or 1)
+    local sampleSize = addon.appearance.size * (previewCritical and edgeSchool ~= -1 and 2 or 1)
     addon.ApplyFont(numberSample, sampleSize)
+    numberSample:SetText(edgeSchool == -1 and "Miss" or "123")
     numberSample:SetTextColor(addon.GetColor(edgeSchool))
     addon.UpdateTextEffect(numberSample, edgeSchool, sampleSize, 1)
     -- Keep large critical samples inside the column; combat size is unchanged.
@@ -292,7 +294,7 @@ profileName:SetText(addon.activeProfile or "Default")
 
 local reset = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 reset:SetSize(160, 28)
-reset:SetPoint("TOPLEFT", 16, -1044)
+reset:SetPoint("TOPLEFT", 16, -1082)
 reset:SetText("Reset colors")
 reset:SetScript("OnClick", function()
     closeOwnedPicker()
@@ -310,7 +312,7 @@ resetText:SetText("Reset font / size")
 resetText:SetScript("OnClick", function() addon.SetAppearance("default", 48) end)
 local resetEdge = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 resetEdge:SetSize(160, 28)
-resetEdge:SetPoint("TOPLEFT", 16, -994)
+resetEdge:SetPoint("TOPLEFT", 16, -1032)
 resetEdge:SetText("Reset selected edge")
 resetEdge:SetScript("OnClick", function()
     closeOwnedPicker()
@@ -318,7 +320,7 @@ resetEdge:SetScript("OnClick", function()
 end)
 
 local note = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-note:SetPoint("TOPLEFT", 16, -1092)
+note:SetPoint("TOPLEFT", 16, -1130)
 note:SetWidth(520)
 note:SetJustifyH("LEFT")
 note:SetText("Choose a school under Outline and glow to customize its edge independently. Soft glow is a layered halo, rather than a shader blur. All attackers are included. Frostfire has its own settings; other mixed schools use Other.")

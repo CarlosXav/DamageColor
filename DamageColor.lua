@@ -191,13 +191,16 @@ live:SetScript("OnUpdate", function(self, elapsed)
     if not any then self:Hide() end
 end)
 
+local outcomes = { MISS = "Miss", RESIST = "Resisted" }
 local function handleDamage(unit, event, flags, amount, school)
     trace("LIVE_EVENT", unit, event)
     trace("FLAGS", unit, flags)
     displayStats.received = displayStats.received + 1
     if not enabled then skipped("overlay disabled"); return end
-    if secret(unit) or secret(event) or secret(school) or secret(amount) then skipped("secret event data"); return end
-    if event ~= "WOUND" then return end
+    if secret(unit) or secret(event) then skipped("secret event data"); return end
+    local outcome = outcomes[event]
+    if event ~= "WOUND" and not outcome then return end
+    if not outcome and (secret(school) or secret(amount)) then skipped("secret event data"); return end
     local record = tracked[unit]
     if record and record.attackable == false then return end
     if unit ~= "target" and (not record or (not record.active and not record.draining)) then return end
@@ -214,21 +217,25 @@ local function handleDamage(unit, event, flags, amount, school)
             end
         end
     end
-    if type(school) ~= "number" or school < 0 then return end
-    if type(amount) ~= "number" or amount <= 0 then return end
+    if outcome then
+        school = -1
+    else
+        if type(school) ~= "number" or school < 0 then return end
+        if type(amount) ~= "number" or amount <= 0 then return end
+    end
     local x, y, anchor, reason = unitPosition(unit)
     if not anchor and (not x or not y) then skipped(reason); return end
     sequence = sequence + 1
     local label = labels[(sequence - 1) % #labels + 1]
     label.age, label.active, label.school = 0, true, school
-    local critical = not secret(flags) and flags == "CRITICAL"
+    local critical = not outcome and not secret(flags) and flags == "CRITICAL"
     label.critical = critical
     label.baseSize = addon.appearance.size * (critical and 2 or 1)
     label.anchor, label.unit = anchor, unit
     label.retired = record and record.draining or false
     label.x = (x or 0) + ((sequence - 1) % 3 - 1) * 36
     label.y = (y or 0) + label.baseSize * 0.75 + ((sequence - 1) % 2) * 18
-    label.text:SetText(tostring(amount))
+    label.text:SetText(outcome or tostring(amount))
     label.text:SetTextColor(addon.GetColor(school))
     local ok, positioned = pcall(function()
         placeWithoutOverlap(label)

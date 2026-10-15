@@ -2,6 +2,7 @@ local addonName, addon = ...
 
 -- Exact masks only: hybrids use the configurable fallback (key 0).
 local defaults = {
+    [-1] = { 1, 1, 1 }, -- Miss/resist outcome text, independent of schools.
     [0] = { 1, 1, 0 },
     [1] = { 1, 0.20, 0.20 },
     [2] = { 1, 0.95, 0.60 },
