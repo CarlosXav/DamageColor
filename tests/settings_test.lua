@@ -8,6 +8,13 @@ for _, name in ipairs({ "SetSize", "SetPoint", "SetAllPoints", "ClearAllPoints",
 end
 function methods:SetFont(path, size, flags) self.fontPath, self.fontSize, self.fontFlags = path, size, flags; return true end
 function methods:GetText() return self.text end
+function methods:SetAutoFocus() end
+function methods:SetMaxLetters() end
+function methods:ClearFocus() end
+StaticPopupDialogs = {}
+CANCEL = "Cancel"
+local lastPopup
+function StaticPopup_Show(key, name, _, data) lastPopup = { key = key, name = name, data = data } end
 function methods:GetParent() return self.parent end
 function methods:GetStringWidth() return #(self.text or "") * (self.fontSize or 12) * 0.6 end
 function methods:GetStringHeight() return self.fontSize or 12 end
@@ -15,6 +22,7 @@ function methods:SetScale(scale) self.scale = scale end
 function methods:SetMinMaxValues(low, high) self.minimum, self.maximum = low, high end
 function methods:OverrideText(text) self.text = text end
 function methods:SetupMenu(generator)
+    self.menuGenerator = generator
     self.choices = {}
     local choices = self.choices
     generator(self, { CreateRadio = function(_, name, selected, selectFont, key)
@@ -122,7 +130,7 @@ local function loadAddon(saved)
     DamageColorDB = saved
     frames = {}
     local addon = {}
-    for _, file in ipairs({ "Palette.lua", "TextEffects.lua", "NativeDamage.lua", "DamageColor.lua", "Settings.lua" }) do
+    for _, file in ipairs({ "Palette.lua", "TextEffects.lua", "NativeDamage.lua", "Presets.lua", "Profiles.lua", "DamageColor.lua", "Settings.lua" }) do
         assert(loadfile(file))("DamageColor", addon)
     end
     for _, frame in ipairs(frames) do
@@ -589,4 +597,46 @@ SlashCmdList.DAMAGECOLOR("watch")
 SlashCmdList.DAMAGECOLOR("stop")
 assert(forbiddenCalls == 0, "Watch must not invoke Blizzard-only combat-log APIs")
 methods.RegisterEvent = register
+-- Profile snapshots must be independent from working settings and survive reloads.
+addon = loadAddon({})
+assert(addon.activeProfile == "Default" and not addon.ProfileIsDirty())
+assert(DamageColorDB.profiles.Default.textStyles[20].mode == "outline")
+assert(DamageColorDB.profiles["Power Glow"].textStyles[1].mode == "glow")
+assert(DamageColorDB.profiles["Power Glow"].textStyles[4].thickness == 6)
+addon.SetColor(1, 0.2, 0.3, 0.4)
+addon.SetAppearance("skurri", 60)
+addon.SetHideBlizzardDamage(false)
+assert(addon.ProfileIsDirty())
+assert(not addon.SaveProfile("Default"), "Factory defaults must remain fixed")
+assert(not addon.SaveProfile(" ") and not addon.SaveProfile("bad|name"))
+assert(addon.SaveProfile(" My style ") and addon.activeProfile == "My style")
+assert(not addon.ProfileIsDirty())
+addon.SetColor(1, 0.5, 0.6, 0.7)
+assert(DamageColorDB.profiles["My style"].colors[1][1] == 0.2, "Editing must not mutate saved profiles")
+local savedProfiles = DamageColorDB
+addon = loadAddon(savedProfiles)
+assert(addon.activeProfile == "My style" and addon.ProfileIsDirty(), "Unsaved working edits survive reloads")
+local profileMenu
+for _, frame in ipairs(frames) do
+    if frame.text == "Profile: My style" then profileMenu = frame end
+end
+assert(profileMenu)
+profileMenu:SetupMenu(profileMenu.menuGenerator)
+profileMenu.choices.Default()
+assert(lastPopup and lastPopup.data == "Default", "Loading must display the discard warning")
+assert(addon.activeProfile == "My style" and addon.colors[1][1] == 0.5,
+    "Opening or cancelling the warning must preserve edits")
+StaticPopupDialogs.DAMAGECOLOR_LOAD_PROFILE.OnAccept(nil, lastPopup.data)
+assert(addon.activeProfile == "Default" and not addon.ProfileIsDirty())
+assert(addon.appearance.size == 48 and addon.hideBlizzardDamage == true)
+assert(addon.LoadProfile("My style") and addon.appearance.font == "skurri" and addon.appearance.size == 60)
+assert(addon.colors[1][1] == 0.2 and addon.hideBlizzardDamage == false)
+assert(addon.LoadProfile("Power Glow") and addon.GetTextStyle(1).thickness == 5)
+assert(addon.colors[1][1] == 0.3137255012989044 and not addon.ProfileIsDirty())
+addon.SetTextStyle(1, "outline", 2, 1, 1, 1)
+assert(addon.SaveProfile("Power Glow"))
+addon = loadAddon(DamageColorDB)
+assert(addon.GetTextStyle(1).mode == "outline" and not addon.ProfileIsDirty(), "Saved preset edits must persist")
+addon = loadAddon({ profiles = { Broken = { colors = false, appearance = { size = 0 / 0 } } } })
+assert(addon.LoadProfile("Broken") and addon.appearance.size == 48, "Invalid saved values must fall back safely")
 print("PASS: per-school outlines/glow/none, color cancel, thickness, layer cleanup, persistence, animation, AoE, death linger, and native visibility")

@@ -13,6 +13,27 @@ works within each shared nameplate anchor; separate restricted plates may overla
 Target client: **1.60.1**, build **70374**, dated **October 12, 2026**.
 Addon interface: **16001**.
 
+## Style profiles
+
+The profile selector at the top of settings loads named styles. Every load asks
+for confirmation: changes not saved to a profile will be lost. Cancel keeps the
+current settings. Changes still apply immediately and survive reloads as working
+settings; use **Save profile** to update the named snapshot before switching.
+
+- **Default** contains the factory colors, font/size, edges, and Blizzard-damage
+  visibility setting. It stays fixed; enter another name to save a customized copy.
+- **Power Glow** starts with the custom per-school colors and strong glows
+  captured from the user's default Forever installation on October 14, 2026.
+  It uses the game-default font at size 48 and hides Blizzard damage.
+- Enter a new name and click **Save profile** to create a profile. Using an
+  existing custom name updates that profile. Profiles are saved account-wide.
+
+Profiles include font, size, all school colors, all outline/glow modes, thicknesses
+and colors, and the Hide Blizzard damage checkbox. Temporary preview controls,
+overlay on/off state, and native CVar restoration bookkeeping are excluded.
+Existing working settings are preserved on upgrade. Saved changes to Power Glow
+are retained across addon updates.
+
 ## Required colors
 
 | Damage type | Color |

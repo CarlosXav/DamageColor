@@ -1,12 +1,14 @@
 ## Interface: 16001
 ## Title: DamageColor
 ## Notes: School-colored damage with impact pops above visible enemy nameplates.
-## Version: 0.11.0
+## Version: 0.12.0
 ## SavedVariables: DamageColorDB
 
 Palette.lua
 TextEffects.lua
 NativeDamage.lua
+Presets.lua
+Profiles.lua
 MeterProbe.lua
 DamageColor.lua
 Settings.lua

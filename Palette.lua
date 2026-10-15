@@ -99,6 +99,15 @@ function addon.ResetColors()
     if addon.OnPaletteChanged then addon.OnPaletteChanged() end
 end
 
+function addon.GetDefaultProfile()
+    local profile = { colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true }
+    for school, color in pairs(defaults) do
+        profile.colors[school] = copy(color)
+        profile.textStyles[school] = defaultStyle(school)
+    end
+    return profile
+end
+
 -- SavedVariables are available only after this addon's ADDON_LOADED event.
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
