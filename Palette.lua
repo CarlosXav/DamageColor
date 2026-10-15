@@ -178,6 +178,7 @@ loader:SetScript("OnEvent", function(self, _, name)
     DamageColorDB.appearance = { font = addon.appearance.font, size = addon.appearance.size }
     if type(DamageColorDB.hideBlizzardDamage) ~= "boolean" then DamageColorDB.hideBlizzardDamage = true end
     addon.hideBlizzardDamage = DamageColorDB.hideBlizzardDamage
+    DamageColorDB.textHeightCap = nil -- Remove the retired screen-cap setting.
     local taken = addon.NormalizeDamageTaken(DamageColorDB.damageTaken, addon.appearance.size)
     addon.SetDamageTaken(taken.size, taken.x, taken.y)
     if type(DamageColorDB.hideBlizzardDamageTaken) ~= "boolean" then DamageColorDB.hideBlizzardDamageTaken = true end

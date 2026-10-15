@@ -48,6 +48,8 @@ function methods:GetTop()
 end
 function methods:GetEffectiveScale() return self.scale or 1 end
 function methods:GetHeight() return self.height or 1080 end
+function methods:SetClampedToScreen() error("Forbidden: cannot clamp restricted regions on build 70374") end
+function methods:SetSize(width, height) self.width, self.height = width, height end
 function methods:IsForbidden() return self.forbidden or false end
 function methods:IsVisible() return self.shown end
 function methods:SetScript(name, fn) self.scripts[name] = fn end
@@ -276,7 +278,25 @@ damageFrame.scripts.OnEvent(damageFrame, "UNIT_COMBAT", "target", "WOUND", "", 9
 local anchored
 for _, frame in ipairs(frames) do if frame.text == "904" and frame.drawLayer == "OVERLAY" then anchored = frame end end
 assert(anchored and anchored.shown, "Secret geometry must not discard a readable damage event")
-assert(anchored.point[2] == plate, "Secret geometry must use a direct frame anchor")
+assert(anchored.point[2] == plate, "Secret geometry must retain the direct plate anchor")
+damageFrame.scripts.OnEvent(damageFrame, "UNIT_COMBAT", "target", "WOUND", "CRITICAL", 905, 1)
+local recovered
+for _, frame in ipairs(frames) do if frame.text == "905" and frame.drawLayer == "OVERLAY" then recovered = frame end end
+assert(recovered and recovered.shown and recovered.point[2] == plate,
+    "Restricted hits must not use a fixed screen cap position")
+local recoveredY = recovered.point[5]
+recovered.parent.scripts.OnUpdate(recovered.parent, 0.08)
+assert(recovered.shown and recovered.point[2] == plate and math.abs(recovered.point[5] - recoveredY - 0.96) < 0.001,
+    "Restricted text must keep its plate anchor and normal animation")
+local originalWidth, originalHeight = methods.GetStringWidth, methods.GetStringHeight
+methods.GetStringWidth = function() return secretPosition end
+methods.GetStringHeight = function() error("mock unavailable glyph measurement") end
+damageFrame.scripts.OnEvent(damageFrame, "UNIT_COMBAT", "target", "WOUND", "", 906, 1)
+local measuredFallback
+for _, frame in ipairs(frames) do if frame.text == "906" and frame.drawLayer == "OVERLAY" then measuredFallback = frame end end
+assert(measuredFallback and measuredFallback.shown,
+    "Unavailable or secret text measurements must not discard a readable hit")
+methods.GetStringWidth, methods.GetStringHeight = originalWidth, originalHeight
 damageFrame.scripts.OnEvent(damageFrame, "PLAYER_TARGET_CHANGED")
 assert(anchored.shown, "Target changes must not truncate an existing damage number")
 plate.x, plate.y = 400, 300
@@ -326,8 +346,7 @@ second.x, second.y = secretPosition, secretPosition
 issecretvalue = function(value) return value == secretPosition end
 hit("nameplate2", 1006)
 assert(number(1006).point[2] == second and number(1006).point[3] == "TOP",
-    "Secret geometry fallback must anchor above the correct plate")
-assert(number(1006).point[5] >= 36, "Direct anchor must clear the nameplate")
+    "Secret geometry must anchor directly above the correct plate")
 damageFrame.scripts.OnEvent(damageFrame, "PLAYER_TARGET_CHANGED")
 assert(number(1006).shown, "Changing targets must not hide off-target damage")
 damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_REMOVED", "nameplate1")
@@ -380,6 +399,7 @@ issecretvalue = function(value) return value == secretPosition end
 damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_ADDED", "nameplate4")
 hit("nameplate4", 2901, "", 1)
 hit("nameplate4", 2902, "CRITICAL", 2)
+assert(number(2902).point[2] == secretPlate, "Restricted critical must retain its plate anchor")
 secretPlate.shown = false
 damageFrame.scripts.OnEvent(damageFrame, "NAME_PLATE_UNIT_REMOVED", "nameplate4")
 assert(number(2901).shown and number(2902).shown, "Secret-only death must not clear existing auto/skill hits")
@@ -933,38 +953,14 @@ end
 assert(sliderCount == 5 and placementCount == 2)
 print("PASS: all slider arrows, one-unit increments, bounds, and preserved saved placement")
 
--- High nameplates and dense critical bursts must remain below the screen top,
--- including peak animation size, glow, drift, and a resized UIParent.
-C_NamePlate.GetNamePlateForUnit = function() return plate end
-plate.x, plate.y, plate.scale, plate.shown = 400, 1500, 0.6, true
-addon = loadAddon(nil)
-addon.SetTextStyle(1, "glow", 6, 1, 1, 1)
-local highListener
-for _, frame in ipairs(frames) do
-    if frame.events.UNIT_COMBAT == "target" then highListener = frame end
-end
-for i = 1, 12 do
-    highListener.scripts.OnEvent(highListener, "UNIT_COMBAT", "target", "WOUND", "CRITICAL", 99000 + i, 1)
-end
-local highLive
-local function assertBelowTop()
-    local count = 0
-    for _, frame in ipairs(frames) do
-        if frame.drawLayer == "OVERLAY" and frame.shown and tonumber(frame.text)
-            and tonumber(frame.text) > 99000 then
-            count = count + 1
-            highLive = frame.parent
-            assert(frame.point[5] + frame.fontSize / 2 + 6 * 1.95 <= UIParent:GetHeight() - 8 + 0.001,
-                "Outgoing critical text and glow must stay below the screen ceiling")
-        end
-    end
-    assert(count == 12, "Clamping must preserve every hit")
-end
-assertBelowTop()
-highLive.scripts.OnUpdate(highLive, 0.08)
-assertBelowTop()
-UIParent.height = 720
-highLive.scripts.OnUpdate(highLive, 1.3)
-assertBelowTop()
-UIParent.height = nil
-print("PASS: outgoing screen ceiling, critical pops, glow, bursts, drift, and resizing")
+-- Retiring the cap removes only that setting, including from saved profiles.
+addon = loadAddon({ textHeightCap = { enabled = true, top = 300 },
+    damageTaken = { size = 32, x = 1200, y = -1000 },
+    profiles = { Custom = { textHeightCap = { enabled = false, top = 250 },
+        appearance = { font = "friz", size = 60 } } } })
+assert(DamageColorDB.textHeightCap == nil and addon.textHeightCap == nil)
+assert(addon.GetProfile("Custom").textHeightCap == nil)
+assert(addon.GetProfile("Custom").appearance.size == 60)
+assert(addon.damageTaken.size == 32 and addon.damageTaken.x == 1200 and addon.damageTaken.y == -1000,
+    "Removing cap settings must preserve unrelated working settings")
+print("PASS: retired cap removed while preserving working settings and custom profiles")
