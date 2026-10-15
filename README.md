@@ -23,10 +23,11 @@ Addon interface: **16001**.
 ## Style profiles
 
 The root **DamageColor** settings screen contains Blizzard-damage visibility.
-Expand DamageColor in the Settings sidebar for three submenus: **Font** contains
+Expand DamageColor in the Settings sidebar for four submenus: **Font** contains
 the font with an adjacent preview and text size. **Style** groups text color and
 edge controls under a single number-type selector, with a live preview alongside.
-**Profiles** contains the profile selector, save/load controls, and a comparison
+**Damage Taken** contains a separate incoming text size, horizontal and vertical
+placement sliders, a placement preview, and a reset button. **Profiles** contains the profile selector, save/load controls, and a comparison
 grid showing all ten saved text styles for the selected profile.
 
 Selecting a profile previews its saved font, size, colors, and edges without
@@ -54,7 +55,7 @@ on October 14, 2026, including the glow presets' Miss/Resisted styling. Bundled
 presets seed missing profiles; existing saved customizations are preserved.
 
 Profiles include font, size, all school colors, all outline/glow modes, thicknesses
-and colors, and the Hide Blizzard damage checkbox. Temporary preview controls,
+and colors, both Blizzard visibility checkboxes, and incoming damage size and placement. Temporary preview controls,
 overlay on/off state, and native CVar restoration bookkeeping are excluded.
 Existing working settings are preserved on upgrade. Saved changes to Power Glow
 are retained across addon updates.
@@ -239,3 +240,26 @@ live overlay color updates, physical hits, above-plate positioning, pop and
 fade animation, secret geometry, mouseover/AoE hits, target-alias duplication,
 friendly filtering, and nameplate removal. Settings layout, the color picker,
 and nameplate placement still require an in-game check.
+
+## Damage taken
+
+Incoming player `UNIT_COMBAT` hits use the same font, school colors, edges,
+critical multiplier, pop, fade, and overlap avoidance as damage dealt. They
+appear near the character at an offset of (0, -250) UI units from screen center.
+Placement sliders range from -500 to 500 UI units. All sliders include left/right
+arrows that change the value by one unit per click; fractional dragging steps
+remain available for incoming size and edge thickness.
+Use **Damage Taken**, above **Profiles** in the sidebar, to adjust placement and
+preview it. Placement follows screen center rather than the character's world
+position. Incoming size defaults to half the outgoing size in every profile,
+including migrated saved profiles, and can then be adjusted independently
+(6–96 UI units). Saved incoming size and placement survive reloads and profile loads.
+Reset size / placement uses half the current outgoing size and the default offset.
+
+**Hide Blizzard damage taken** is on by default on the root settings screen.
+It hides newly displayed incoming damage strings using secure post-hooks while
+preserving healing and status events. Blizzard's event and update handlers remain
+untouched: calling them from addon code taints secret health/power arithmetic.
+Suppression stops when unchecked, on `/dc off`, or at logout. Late loading of
+Blizzard combat text is supported. Incoming hits with restricted amounts or schools are skipped, just
+like outgoing hits. Verify native suppression and placement in the target client.

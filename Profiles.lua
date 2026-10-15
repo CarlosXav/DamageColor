@@ -15,7 +15,8 @@ local function same(a, b)
 end
 local function snapshot()
     return copy({ colors = addon.colors, textStyles = addon.textStyles,
-        appearance = addon.appearance, hideBlizzardDamage = addon.hideBlizzardDamage })
+        appearance = addon.appearance, hideBlizzardDamage = addon.hideBlizzardDamage,
+        damageTaken = addon.damageTaken, hideBlizzardDamageTaken = addon.hideBlizzardDamageTaken })
 end
 local function normalize(profile)
     local result = addon.GetDefaultProfile()
@@ -43,6 +44,8 @@ local function normalize(profile)
     end
     if number(appearance.size, 12, 96) then result.appearance.size = math.floor(appearance.size + 0.5) end
     if type(profile.hideBlizzardDamage) == "boolean" then result.hideBlizzardDamage = profile.hideBlizzardDamage end
+    result.damageTaken = addon.NormalizeDamageTaken(profile.damageTaken, result.appearance.size)
+    if type(profile.hideBlizzardDamageTaken) == "boolean" then result.hideBlizzardDamageTaken = profile.hideBlizzardDamageTaken end
     return result
 end
 function addon.GetProfileNames()
@@ -84,6 +87,8 @@ function addon.LoadProfile(name)
         addon.SetTextStyle(school, style.mode, style.thickness, unpack(style.color))
     end
     addon.SetAppearance(data.appearance.font, data.appearance.size)
+    addon.SetDamageTaken(data.damageTaken.size, data.damageTaken.x, data.damageTaken.y)
+    addon.SetHideBlizzardDamageTaken(data.hideBlizzardDamageTaken)
     addon.SetHideBlizzardDamage(data.hideBlizzardDamage)
     addon.activeProfile, DamageColorDB.activeProfile = name, name
     if addon.OnProfilesChanged then addon.OnProfilesChanged() end

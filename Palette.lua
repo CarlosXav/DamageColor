@@ -23,6 +23,8 @@ addon.fonts = {
 }
 addon.appearance = { font = "default", size = 48 }
 addon.hideBlizzardDamage = true
+addon.hideBlizzardDamageTaken = true
+addon.damageTaken = { size = 24, x = 0, y = -250 }
 local function fontInfo(key)
     for _, font in ipairs(addon.fonts) do if font.key == key then return font end end
 end
@@ -44,6 +46,23 @@ function addon.SetAppearance(font, size)
     addon.appearance.font, addon.appearance.size = font, size
     if DamageColorDB then DamageColorDB.appearance = { font = font, size = size } end
     if addon.OnAppearanceChanged then addon.OnAppearanceChanged() end
+end
+function addon.NormalizeDamageTaken(value, dealtSize)
+    value = type(value) == "table" and value or {}
+    local function validNumber(v, low, high)
+        return type(v) == "number" and v == v and v >= low and v <= high
+    end
+    return {
+        size = validNumber(value.size, 6, 96) and math.floor(value.size * 2 + 0.5) / 2 or dealtSize / 2,
+        x = validNumber(value.x, -2000, 2000) and value.x or 0,
+        y = validNumber(value.y, -2000, 2000) and value.y or -250,
+    }
+end
+function addon.SetDamageTaken(size, x, y)
+    local value = addon.NormalizeDamageTaken({ size = size, x = x, y = y }, addon.appearance.size)
+    addon.damageTaken = value
+    if DamageColorDB then DamageColorDB.damageTaken = { size = value.size, x = value.x, y = value.y } end
+    if addon.OnDamageTakenChanged then addon.OnDamageTakenChanged() end
 end
 local function copy(color) return { color[1], color[2], color[3] } end
 local function valid(color)
@@ -101,7 +120,8 @@ function addon.ResetColors()
 end
 
 function addon.GetDefaultProfile()
-    local profile = { colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true }
+    local profile = { colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
+        damageTaken = { size = 24, x = 0, y = -250 } }
     for school, color in pairs(defaults) do
         profile.colors[school] = copy(color)
         profile.textStyles[school] = defaultStyle(school)
@@ -158,6 +178,11 @@ loader:SetScript("OnEvent", function(self, _, name)
     DamageColorDB.appearance = { font = addon.appearance.font, size = addon.appearance.size }
     if type(DamageColorDB.hideBlizzardDamage) ~= "boolean" then DamageColorDB.hideBlizzardDamage = true end
     addon.hideBlizzardDamage = DamageColorDB.hideBlizzardDamage
+    local taken = addon.NormalizeDamageTaken(DamageColorDB.damageTaken, addon.appearance.size)
+    addon.SetDamageTaken(taken.size, taken.x, taken.y)
+    if type(DamageColorDB.hideBlizzardDamageTaken) ~= "boolean" then DamageColorDB.hideBlizzardDamageTaken = true end
+    addon.hideBlizzardDamageTaken = DamageColorDB.hideBlizzardDamageTaken
+    addon.ApplyNativeDamageTakenSetting()
     addon.ApplyNativeDamageSetting()
     if addon.OnNativeDamageChanged then addon.OnNativeDamageChanged() end
     if addon.OnPaletteChanged then addon.OnPaletteChanged() end

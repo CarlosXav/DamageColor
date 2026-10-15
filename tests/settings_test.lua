@@ -7,6 +7,7 @@ for _, name in ipairs({ "SetSize", "SetPoint", "SetAllPoints", "ClearAllPoints",
     methods[name] = function() end
 end
 function methods:SetFont(path, size, flags) self.fontPath, self.fontSize, self.fontFlags = path, size, flags; return true end
+function methods:GetScript(name) return self.scripts[name] end
 function methods:GetText() return self.text end
 function methods:SetAutoFocus() end
 function methods:SetEnabled(value) self.enabled = value end
@@ -34,6 +35,7 @@ function methods:GetValue() return self.value end
 function methods:SetChecked(value) self.checked = value end
 function methods:GetChecked() return self.checked end
 function methods:SetValue(value)
+    if self.minimum then value = math.max(self.minimum, math.min(self.maximum, value)) end
     self.value = value
     if self.scripts.OnValueChanged then self.scripts.OnValueChanged(self, value) end
 end
@@ -150,7 +152,7 @@ local function loadAddon(saved)
     DamageColorDB = saved
     frames = {}
     local addon = {}
-    for _, file in ipairs({ "Palette.lua", "TextEffects.lua", "NativeDamage.lua", "Presets.lua", "Profiles.lua", "DamageColor.lua", "Settings.lua" }) do
+    for _, file in ipairs({ "Palette.lua", "TextEffects.lua", "NativeDamage.lua", "NativeDamageTaken.lua", "Presets.lua", "Profiles.lua", "DamageColor.lua", "Settings.lua" }) do
         assert(loadfile(file))("DamageColor", addon)
     end
     for _, frame in ipairs(frames) do
@@ -402,7 +404,7 @@ issecretvalue = nil
 local dropdown, slider
 for _, frame in ipairs(frames) do
     if frame.choices and frame.choices.arial then dropdown = frame end
-    if frame.template == "OptionsSliderTemplate" and frame.maximum == 96 then slider = frame end
+    if frame.template == "OptionsSliderTemplate" and frame.minimum == 12 and frame.maximum == 96 then slider = frame end
 end
 assert(dropdown and slider, "Missing font or size control")
 dropdown.choices.arial()
@@ -782,3 +784,150 @@ end
 assert(savedGlowLayers == 24, "Saved-profile preview must render its glow independently of the current style")
 assert(addon.GetTextStyle(2).mode == "none", "Previewing saved glow must leave working edges unchanged")
 print("PASS: per-school outlines/glow/none, color cancel, thickness, layer cleanup, persistence, animation, AoE, death linger, and native visibility")
+
+-- Incoming hits share styles, but keep independent size and placement in profiles.
+addon = loadAddon({ appearance = { font = "default", size = 61 }, profiles = {
+    Legacy = { appearance = { font = "default", size = 73 } },
+} })
+assert(addon.damageTaken.size == 30.5 and addon.hideBlizzardDamageTaken)
+assert(addon.GetProfile("Legacy").damageTaken.size == 36.5)
+for _, name in ipairs(addon.GetProfileNames()) do
+    local p = addon.GetProfile(name)
+    assert(p.damageTaken.size == p.appearance.size / 2)
+    assert(p.damageTaken.x == 0 and p.damageTaken.y == -250)
+end
+assert(submenus["Damage Taken"])
+addon.SetDamageTaken(19, 125, -75)
+addon.SetHideBlizzardDamageTaken(false)
+assert(addon.SaveProfile("Incoming"))
+addon.LoadProfile("Default")
+assert(addon.damageTaken.size == 24 and addon.hideBlizzardDamageTaken)
+addon.LoadProfile("Incoming")
+assert(addon.damageTaken.size == 19 and addon.damageTaken.x == 125 and addon.damageTaken.y == -75)
+assert(not addon.hideBlizzardDamageTaken and not addon.ProfileIsDirty())
+addon = loadAddon(DamageColorDB)
+assert(addon.damageTaken.size == 19 and addon.damageTaken.x == 125)
+local incomingListener
+for _, frame in ipairs(frames) do
+    if frame.events.UNIT_COMBAT == "player" then incomingListener = frame end
+end
+assert(incomingListener)
+incomingListener.scripts.OnEvent(incomingListener, "UNIT_COMBAT", "player", "WOUND", "CRITICAL", 98765, 4)
+local incomingText
+for _, frame in ipairs(frames) do
+    if frame.drawLayer == "OVERLAY" and frame.text == "98765" then incomingText = frame end
+end
+assert(incomingText and incomingText.shown and incomingText.point[3] == "CENTER")
+assert(math.abs(incomingText.fontSize - 19 * 2 * 0.85) < 0.001)
+rgb(incomingText.color, unpack(addon.colors[4]))
+addon.SetAppearance("arial", 80)
+assert(addon.damageTaken.size == 19 and incomingText.fontSize == 19 * 2 * 0.85)
+local oldX = incomingText.point[4]
+addon.SetDamageTaken(19, 225, -75)
+assert(incomingText.point[4] == oldX + 100)
+incomingText.parent.scripts.OnUpdate(incomingText.parent, 1.8)
+assert(not incomingText.shown)
+local restricted = {}
+issecretvalue = function(v) return v == restricted end
+incomingListener.scripts.OnEvent(incomingListener, "UNIT_COMBAT", "player", "WOUND", "", restricted, 4)
+issecretvalue = nil
+-- Native handlers must stay installed and execute exclusively through the
+-- simulated engine, never through an addon wrapper. Post-hooks run afterward.
+CombatText = CreateFrame("Frame")
+CombatText.activeFontStrings = {}
+local nativeCalls, engineDispatch = 0, false
+local function addNativeMessage(self)
+    local text = self:CreateFontString(nil, "OVERLAY")
+    addon.ApplyFont(text, 24)
+    text:SetText("native")
+    text:Show()
+    self.activeFontStrings[#self.activeFontStrings + 1] = text
+end
+CombatText.AddMessage = addNativeMessage
+local secureHooks = {}
+hooksecurefunc = function(object, name, callback)
+    assert(object == CombatText and name == "AddMessage")
+    secureHooks[#secureHooks + 1] = callback
+end
+local postScripts = {}
+function CombatText:HookScript(name, callback)
+    postScripts[name] = postScripts[name] or {}
+    table.insert(postScripts[name], callback)
+end
+local nativeHandler = function(self, event, kind, skip)
+    assert(engineDispatch, "Blizzard OnEvent must never be invoked from addon code")
+    nativeCalls = nativeCalls + 1
+    if event == "COMBAT_TEXT_UPDATE" and not skip then
+        self:AddMessage()
+        for _, hook in ipairs(secureHooks) do hook(self) end
+    end
+end
+CombatText:SetScript("OnEvent", nativeHandler)
+CombatText.SetScript = function() error("Addon must never replace Blizzard scripts") end
+local function nativeEvent(event, kind, skip)
+    engineDispatch = true
+    CombatText:GetScript("OnEvent")(CombatText, event, kind, skip)
+    engineDispatch = false
+    for _, hook in ipairs(postScripts.OnEvent or {}) do hook(CombatText, event, kind, skip) end
+    return CombatText.activeFontStrings[#CombatText.activeFontStrings]
+end
+addon.hideBlizzardDamageTaken = true
+lifecycle("ADDON_LOADED")
+assert(addon.nativeDamageTakenStatus == "hidden", "Late Blizzard loading must install suppression")
+assert(CombatText:GetScript("OnEvent") == nativeHandler)
+assert(not nativeEvent("COMBAT_TEXT_UPDATE", "DAMAGE").shown)
+assert(not nativeEvent("COMBAT_TEXT_UPDATE", "SPELL_DAMAGE_CRIT").shown)
+local heal = nativeEvent("COMBAT_TEXT_UPDATE", "HEAL")
+assert(heal.shown, "Native incoming healing must remain visible")
+nativeEvent("COMBAT_TEXT_UPDATE", "DAMAGE", true)
+assert(heal.shown, "Skipped damage must not hide an earlier healing message")
+nativeEvent("UNIT_POWER_UPDATE", "player")
+nativeEvent("UNIT_HEALTH", "player")
+assert(CombatText:GetScript("OnEvent") == nativeHandler, "Health/power handlers must remain untouched")
+addon.SetHideBlizzardDamageTaken(false)
+assert(nativeEvent("COMBAT_TEXT_UPDATE", "DAMAGE").shown)
+addon.SetHideBlizzardDamageTaken(true)
+SlashCmdList.DAMAGECOLOR("off")
+assert(nativeEvent("COMBAT_TEXT_UPDATE", "DAMAGE").shown)
+SlashCmdList.DAMAGECOLOR("on")
+assert(not nativeEvent("COMBAT_TEXT_UPDATE", "DAMAGE").shown)
+lifecycle("PLAYER_LOGOUT")
+assert(nativeEvent("COMBAT_TEXT_UPDATE", "DAMAGE").shown)
+assert(#secureHooks == 1 and #postScripts.OnEvent == 1, "Toggles must not stack hooks")
+CombatText = nil
+hooksecurefunc = nil
+print("PASS: incoming migration, profiles, placement, and native suppression without replacing Blizzard handlers")
+
+addon = loadAddon({ damageTaken = { size = 24, x = 1200, y = -1000 } })
+assert(addon.damageTaken.x == 1200 and addon.damageTaken.y == -1000,
+    "Opening settings must preserve existing placement outside the new slider range")
+local sliderCount, placementCount = 0, 0
+for _, slider in ipairs(frames) do
+    if slider.kind == "Slider" then
+        sliderCount = sliderCount + 1
+        local left, right
+        for _, button in ipairs(frames) do
+            if button.kind == "Button" and button.point and button.point[2] == slider then
+                if button.text == "<" then left = button end
+                if button.text == ">" then right = button end
+            end
+        end
+        assert(left and right, "Every slider needs both arrows")
+        if slider.minimum < 0 then
+            placementCount = placementCount + 1
+            assert(slider.minimum == -500 and slider.maximum == 500)
+        end
+        slider:SetValue(slider.minimum)
+        left.scripts.OnClick(left)
+        assert(slider:GetValue() == slider.minimum, "Left arrow must stop at the minimum")
+        right.scripts.OnClick(right)
+        assert(slider:GetValue() == slider.minimum + 1, "Right arrow must add exactly one unit")
+        left.scripts.OnClick(left)
+        assert(slider:GetValue() == slider.minimum, "Left arrow must subtract exactly one unit")
+        slider:SetValue(slider.maximum)
+        right.scripts.OnClick(right)
+        assert(slider:GetValue() == slider.maximum, "Right arrow must stop at the maximum")
+    end
+end
+assert(sliderCount == 5 and placementCount == 2)
+print("PASS: all slider arrows, one-unit increments, bounds, and preserved saved placement")

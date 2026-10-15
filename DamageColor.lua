@@ -116,7 +116,7 @@ local function placeWithoutOverlap(label)
             local x, y = candidate.x, candidate.y
             local overlap = 0
             for _, other in ipairs(labels) do
-                if other ~= label and other.active and other.anchor == label.anchor then
+                if other ~= label and other.active and other.anchor == label.anchor and other.incoming == label.incoming then
                     local dx = math.abs(x - other.x)
                     local dy = math.abs(y - (other.y + other.age * 12))
                     local width = (label.width + other.width) / 2 - dx
@@ -149,7 +149,9 @@ local function positionLabel(label)
             end
         end
     end
-    if label.anchor then
+    if label.incoming then
+        label.text:SetPoint("CENTER", UIParent, "CENTER", label.x + addon.damageTaken.x, label.y + addon.damageTaken.y + label.age * 12)
+    elseif label.anchor then
         label.text:SetPoint("CENTER", label.anchor, "TOP", label.x, label.y + label.age * 12)
     else
         -- Snapshot when readable: old hits remain at their impact position.
@@ -201,9 +203,10 @@ local function handleDamage(unit, event, flags, amount, school)
     local outcome = outcomes[event]
     if event ~= "WOUND" and not outcome then return end
     if not outcome and (secret(school) or secret(amount)) then skipped("secret event data"); return end
+    local incoming = unit == "player"
     local record = tracked[unit]
     if record and record.attackable == false then return end
-    if unit ~= "target" and (not record or (not record.active and not record.draining)) then return end
+    if not incoming and unit ~= "target" and (not record or (not record.active and not record.draining)) then return end
     if unit == "target" and C_NamePlate then
         -- A target alias and its nameplate token can report the same hit.
         -- Prefer the nameplate subscription; never deduplicate by hit amount.
@@ -223,14 +226,16 @@ local function handleDamage(unit, event, flags, amount, school)
         if type(school) ~= "number" or school < 0 then return end
         if type(amount) ~= "number" or amount <= 0 then return end
     end
-    local x, y, anchor, reason = unitPosition(unit)
+    local x, y, anchor, reason
+    if incoming then x, y = 0, 0 else x, y, anchor, reason = unitPosition(unit) end
     if not anchor and (not x or not y) then skipped(reason); return end
     sequence = sequence + 1
     local label = labels[(sequence - 1) % #labels + 1]
     label.age, label.active, label.school = 0, true, school
     local critical = not outcome and not secret(flags) and flags == "CRITICAL"
     label.critical = critical
-    label.baseSize = addon.appearance.size * (critical and 2 or 1)
+    label.incoming = incoming
+    label.baseSize = (incoming and addon.damageTaken.size or addon.appearance.size) * (critical and 2 or 1)
     label.anchor, label.unit = anchor, unit
     label.retired = record and record.draining or false
     label.x = (x or 0) + ((sequence - 1) % 3 - 1) * 36
@@ -287,6 +292,10 @@ local function trackUnit(unit)
     record.listener:RegisterUnitEvent("UNIT_COMBAT", unit)
     unitPosition(unit) -- Cache the position before combat can restrict geometry.
 end
+
+local incomingEvents = CreateFrame("Frame")
+incomingEvents:RegisterUnitEvent("UNIT_COMBAT", "player")
+incomingEvents:SetScript("OnEvent", function(_, _, ...) handleDamage(...) end)
 
 local damageEvents = CreateFrame("Frame")
 damageEvents:RegisterUnitEvent("UNIT_COMBAT", "target")
@@ -406,12 +415,15 @@ function addon.RefreshTextAppearance()
     for _, label in ipairs(labels) do
         if label.active then
             local oldSize = label.baseSize
-            label.baseSize = addon.appearance.size * (label.critical and 2 or 1)
+            label.baseSize = (label.incoming and addon.damageTaken.size or addon.appearance.size) * (label.critical and 2 or 1)
             label.y = label.y + (label.baseSize - oldSize) * 0.75
             local ok, positioned = pcall(positionLabel, label)
             if not ok or not positioned then label.active = false; addon.HideDamageText(label.text) end
         end
     end
+end
+function addon.ShowDamageTakenPreview()
+    handleDamage("player", "WOUND", "", 123, 1)
 end
 local previewTime = 0
 function addon.ShowPreview()
@@ -469,11 +481,13 @@ SlashCmdList.DAMAGECOLOR = function(message)
     elseif command == "on" then
         enabled = true
         addon.overlayEnabled = true
+        addon.ApplyNativeDamageTakenSetting()
         addon.ApplyNativeDamageSetting()
         say("Damage overlay enabled (all attackers on visible enemy nameplates).")
     elseif command == "off" then
         enabled = false
         addon.overlayEnabled = false
+        addon.ApplyNativeDamageTakenSetting()
         addon.ApplyNativeDamageSetting()
         for _, label in ipairs(labels) do
             label.active = false
@@ -499,6 +513,7 @@ SlashCmdList.DAMAGECOLOR = function(message)
         say("Client " .. version .. " / " .. build .. " / interface " .. interface)
         say("Nameplate overlay=" .. (enabled and "on" or "off") .. "; physical includes auto-attacks.")
         say("Blizzard damage: " .. addon.nativeDamageStatus)
+        say("Blizzard damage taken: " .. addon.nativeDamageTakenStatus)
         local count = 0
         for _, record in pairs(tracked) do if record.active then count = count + 1 end end
         say("Tracked nameplates=" .. count)

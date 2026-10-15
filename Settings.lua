@@ -15,10 +15,10 @@ local description = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 description:SetPoint("TOPLEFT", 16, -48)
 description:SetWidth(520)
 description:SetJustifyH("LEFT")
-description:SetText("Choose Font, Style, or Profiles from the DamageColor submenus to customize your numbers.")
+description:SetText("Choose Font, Style, Damage Taken, or Profiles from the DamageColor submenus to customize your numbers.")
 
 local pages, pageCanvases = {}, {}
-for _, name in ipairs({ "Font", "Style", "Profiles" }) do
+for _, name in ipairs({ "Font", "Style", "Damage Taken", "Profiles" }) do
     local pageCanvas = CreateFrame("Frame", nil, UIParent)
     pageCanvas:Hide()
     local pageScroll = CreateFrame("ScrollFrame", nil, pageCanvas, "UIPanelScrollFrameTemplate")
@@ -34,6 +34,23 @@ for _, name in ipairs({ "Font", "Style", "Profiles" }) do
     pages[name], pageCanvases[name] = page, pageCanvas
 end
 local general, stylePanel, profilesPanel = pages.Font, pages.Style, pages.Profiles
+
+local function addSliderArrows(slider, minimum, maximum)
+    for _, direction in ipairs({ -1, 1 }) do
+        local button = CreateFrame("Button", nil, slider:GetParent(), "UIPanelButtonTemplate")
+        button:SetSize(24, 24)
+        if direction < 0 then
+            button:SetPoint("RIGHT", slider, "LEFT", -8, 0)
+            button:SetText("<")
+        else
+            button:SetPoint("LEFT", slider, "RIGHT", 8, 0)
+            button:SetText(">")
+        end
+        button:SetScript("OnClick", function()
+            slider:SetValue(math.max(minimum, math.min(maximum, slider:GetValue() + direction)))
+        end)
+    end
+end
 
 local fontLabel = general:CreateFontString(nil, "ARTWORK", "GameFontNormal")
 fontLabel:SetPoint("TOPLEFT", 16, -20)
@@ -51,11 +68,12 @@ end)
 local sizeLabel = general:CreateFontString(nil, "ARTWORK", "GameFontNormal")
 sizeLabel:SetPoint("TOPLEFT", 16, -100)
 local sizeSlider = CreateFrame("Slider", nil, general, "OptionsSliderTemplate")
-sizeSlider:SetPoint("TOPLEFT", 16, -128)
-sizeSlider:SetSize(320, 18)
+sizeSlider:SetPoint("TOPLEFT", 48, -128)
+sizeSlider:SetSize(256, 18)
 sizeSlider:SetMinMaxValues(12, 96)
 sizeSlider:SetValueStep(1)
 sizeSlider:SetObeyStepOnDrag(true)
+addSliderArrows(sizeSlider, 12, 96)
 sizeSlider:SetScript("OnValueChanged", function(_, value)
     addon.SetAppearance(addon.appearance.font, value)
 end)
@@ -66,6 +84,52 @@ local hideLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 hideLabel:SetPoint("LEFT", hideNative, "RIGHT", 6, 0)
 hideLabel:SetText("Hide Blizzard damage")
 hideNative:SetScript("OnClick", function(self) addon.SetHideBlizzardDamage(self:GetChecked() == true) end)
+
+local hideTaken = CreateFrame("CheckButton", nil, panel, "ChatConfigCheckButtonTemplate")
+hideTaken:SetSize(26, 26)
+hideTaken:SetPoint("TOPLEFT", 16, -140)
+local hideTakenLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+hideTakenLabel:SetPoint("LEFT", hideTaken, "RIGHT", 6, 0)
+hideTakenLabel:SetText("Hide Blizzard damage taken")
+hideTaken:SetScript("OnClick", function(self) addon.SetHideBlizzardDamageTaken(self:GetChecked() == true) end)
+
+local takenPanel = pages["Damage Taken"]
+local takenNote = takenPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+takenNote:SetPoint("TOPLEFT", 16, -16)
+takenNote:SetWidth(520)
+takenNote:SetJustifyH("LEFT")
+takenNote:SetText("Incoming damage uses the font, colors, and edges from Font and Style. Adjust its size and position separately. Position is relative to screen center, near your character; positive values move right and up.")
+local takenControls = {}
+local refreshingTaken = false
+for i, spec in ipairs({ { "size", "Text size", 6, 96, 0.5 },
+    { "x", "Horizontal position", -500, 500, 1 }, { "y", "Vertical position", -500, 500, 1 } }) do
+    local key = spec[1]
+    local label = takenPanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    label:SetPoint("TOPLEFT", 16, -100 - (i - 1) * 90)
+    local slider = CreateFrame("Slider", nil, takenPanel, "OptionsSliderTemplate")
+    slider:SetPoint("TOPLEFT", 48, -128 - (i - 1) * 90)
+    slider:SetSize(356, 18)
+    slider:SetMinMaxValues(spec[3], spec[4])
+    slider:SetValueStep(spec[5])
+    slider:SetObeyStepOnDrag(true)
+    addSliderArrows(slider, spec[3], spec[4])
+    slider:SetScript("OnValueChanged", function(_, value)
+        if refreshingTaken or addon.damageTaken[key] == value then return end
+        local v = addon.damageTaken
+        addon.SetDamageTaken(key == "size" and value or v.size, key == "x" and value or v.x, key == "y" and value or v.y)
+    end)
+    takenControls[key] = { label = label, slider = slider, title = spec[2] }
+end
+local takenPreview = CreateFrame("Button", nil, takenPanel, "UIPanelButtonTemplate")
+takenPreview:SetSize(160, 28)
+takenPreview:SetPoint("TOPLEFT", 16, -390)
+takenPreview:SetText("Preview damage taken")
+takenPreview:SetScript("OnClick", function() addon.ShowDamageTakenPreview() end)
+local takenReset = CreateFrame("Button", nil, takenPanel, "UIPanelButtonTemplate")
+takenReset:SetSize(180, 28)
+takenReset:SetPoint("LEFT", takenPreview, "RIGHT", 12, 0)
+takenReset:SetText("Reset size / placement")
+takenReset:SetScript("OnClick", function() addon.SetDamageTaken(addon.appearance.size / 2, 0, -250) end)
 
 local schools = {
     { 1, "Physical / auto-attacks / bleeds" },
@@ -133,11 +197,12 @@ edgeModeDropdown:SetPoint("TOPLEFT", 16, -138)
 local edgeWidthLabel = stylePanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
 edgeWidthLabel:SetPoint("TOPLEFT", 16, -180)
 local edgeWidth = CreateFrame("Slider", nil, stylePanel, "OptionsSliderTemplate")
-edgeWidth:SetSize(320, 18)
-edgeWidth:SetPoint("TOPLEFT", 16, -208)
+edgeWidth:SetSize(256, 18)
+edgeWidth:SetPoint("TOPLEFT", 48, -208)
 edgeWidth:SetMinMaxValues(1, 6)
 edgeWidth:SetValueStep(0.25)
 edgeWidth:SetObeyStepOnDrag(true)
+addSliderArrows(edgeWidth, 1, 6)
 local edgeColor = CreateFrame("Button", nil, stylePanel, "UIPanelButtonTemplate")
 edgeColor:SetSize(240, 28)
 edgeColor:SetPoint("TOPLEFT", 16, -250)
@@ -195,6 +260,13 @@ local refreshProfiles
 local function refresh()
     if refreshProfiles then refreshProfiles() end
     hideNative:SetChecked(addon.hideBlizzardDamage)
+    hideTaken:SetChecked(addon.hideBlizzardDamageTaken)
+    refreshingTaken = true
+    for key, control in pairs(takenControls) do
+        control.label:SetText(control.title .. ": " .. addon.damageTaken[key])
+        if control.slider:GetValue() ~= addon.damageTaken[key] then control.slider:SetValue(addon.damageTaken[key]) end
+    end
+    refreshingTaken = false
     fontDropdown:OverrideText(addon.GetFont().name)
     sizeLabel:SetText("Text size: " .. addon.appearance.size .. "   (critical: " .. addon.appearance.size * 2 .. ")")
     if sizeSlider:GetValue() ~= addon.appearance.size then sizeSlider:SetValue(addon.appearance.size) end
@@ -253,6 +325,10 @@ addon.OnAppearanceChanged = function()
     addon.RefreshTextAppearance()
 end
 addon.OnNativeDamageChanged = refresh
+addon.OnDamageTakenChanged = function()
+    refresh()
+    addon.RefreshTextAppearance()
+end
 addon.OnTextStyleChanged = function()
     refresh()
     addon.RefreshDisplayColors()
@@ -396,7 +472,7 @@ note:SetText("Choose a number type to customize its text and edge together. Soft
 
 local category = Settings.RegisterCanvasLayoutCategory(canvas, "DamageColor")
 Settings.RegisterAddOnCategory(category)
-for _, name in ipairs({ "Font", "Style", "Profiles" }) do
+for _, name in ipairs({ "Font", "Style", "Damage Taken", "Profiles" }) do
     local pageCanvas = pageCanvases[name]
     Settings.RegisterCanvasLayoutSubcategory(category, pageCanvas, name)
     pageCanvas:SetScript("OnShow", refresh)

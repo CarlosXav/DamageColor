@@ -7,6 +7,7 @@
 Palette.lua
 TextEffects.lua
 NativeDamage.lua
+NativeDamageTaken.lua
 Presets.lua
 Profiles.lua
 MeterProbe.lua
