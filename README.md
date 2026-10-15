@@ -22,7 +22,15 @@ Addon interface: **16001**.
 
 ## Style profiles
 
-The profile selector at the top of settings loads named styles. Every load asks
+The root **DamageColor** settings screen contains Blizzard-damage visibility.
+Expand DamageColor in the Settings sidebar for three submenus: **Font** contains
+the font with an adjacent preview and text size. **Style** groups text color and
+edge controls under a single number-type selector, with a live preview alongside.
+**Profiles** contains the profile selector, save/load controls, and a comparison
+grid showing all ten saved text styles for the selected profile.
+
+Selecting a profile previews its saved font, size, colors, and edges without
+changing the active settings. Click **Load profile** to apply it. Every load asks
 for confirmation: changes not saved to a profile will be lost. Cancel keeps the
 current settings. Changes still apply immediately and survive reloads as working
 settings; use **Save profile** to update the named snapshot before switching.
@@ -34,6 +42,16 @@ settings; use **Save profile** to update the named snapshot before switching.
   It uses the game-default font at size 48 and hides Blizzard damage.
 - Enter a new name and click **Save profile** to create a profile. Using an
   existing custom name updates that profile. Profiles are saved account-wide.
+- **Power Glow (Lightning)** contains the user's saved Lightning variant,
+  captured from the game settings on October 14, 2026. It is available on fresh
+  installs and upgrades; existing saved edits to this profile are preserved.
+- **White Outline** uses the standard school palette with thin white outlines.
+- **Default (Lightning)** uses the standard style with the saved lightning-blue
+  Nature color.
+
+All four custom built-in presets were refreshed from the user's saved profiles
+on October 14, 2026, including the glow presets' Miss/Resisted styling. Bundled
+presets seed missing profiles; existing saved customizations are preserved.
 
 Profiles include font, size, all school colors, all outline/glow modes, thicknesses
 and colors, and the Hide Blizzard damage checkbox. Temporary preview controls,
@@ -75,7 +93,7 @@ Enable DamageColor in the character-selection AddOns list, then log in or reload
 - `/dc stop`: stop collecting early.
 - `/dc report`: print the client build, counts, event types, flags, and school masks.
 
-Click a school's button to open the game color picker. Each of the seven schools
+In Style, select a number type and click Text color to open the game color picker. Each of the seven schools
 has its own color, and Frostfire has a separate entry. Other
 controls the remaining fallback. Swatches, hex codes, previews, and active overlay numbers update as you
 pick. Cancel restores the color from before opening the picker. Reset colors
@@ -91,7 +109,7 @@ active numbers and the palette preview immediately and are saved account-wide.
 Reset font / size restores Game default and 48 without changing colors. Scroll
 the settings panel to reach all controls on smaller screens.
 
-Under **Outline and glow**, choose a damage school (or Other for mixed schools),
+In **Style**, choose a number type (or Other for mixed schools),
 then choose None, Outline, or Soft glow. Each school saves its own edge color
 and thickness / glow radius (1–6 UI units, in quarter-unit steps). None removes
 the edge entirely. The default is None: no outline or glow, except Frostfire's
@@ -103,7 +121,7 @@ Changes update active numbers and `/dc preview` immediately, including critical
 size, pop, and fade. The edge color picker supports Cancel just like text colors.
 
 The **Number preview** inside the settings menu shows a sample using the school
-selected under Outline and glow. It updates immediately with text color, font,
+selected in Style. It updates immediately with text color, font,
 size, and edge changes. Check **Critical hit** to preview twice the normal size.
 
 Colored outlines use offset glyph layers because the native outline flags have

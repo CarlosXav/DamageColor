@@ -55,6 +55,9 @@ function addon.GetProfileNames()
     end)
     return names
 end
+function addon.GetProfile(name)
+    return profiles[name] and copy(profiles[name])
+end
 function addon.ProfileIsDirty()
     return not same(snapshot(), profiles[addon.activeProfile])
 end
@@ -100,9 +103,11 @@ loader:SetScript("OnEvent", function(self, _, name)
             profiles[key] = normalize(profile)
         end
     end
-    -- Default is always the factory style; seed Power Glow only once.
+    -- Default is always the factory style; seed custom presets only once.
     profiles.Default = addon.GetDefaultProfile()
-    if type(profiles["Power Glow"]) ~= "table" then profiles["Power Glow"] = normalize(addon.powerGlowPreset) end
+    for presetName, preset in pairs(addon.bundledProfiles) do
+        if type(profiles[presetName]) ~= "table" then profiles[presetName] = normalize(preset) end
+    end
     addon.activeProfile = type(DamageColorDB.activeProfile) == "string"
         and profiles[DamageColorDB.activeProfile] and DamageColorDB.activeProfile
         or (same(snapshot(), profiles["Power Glow"]) and "Power Glow" or "Default")

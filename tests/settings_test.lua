@@ -9,6 +9,7 @@ end
 function methods:SetFont(path, size, flags) self.fontPath, self.fontSize, self.fontFlags = path, size, flags; return true end
 function methods:GetText() return self.text end
 function methods:SetAutoFocus() end
+function methods:SetEnabled(value) self.enabled = value end
 function methods:SetMaxLetters() end
 function methods:ClearFocus() end
 StaticPopupDialogs = {}
@@ -99,10 +100,18 @@ C_CVar = {
         cvars[name] = value
     end,
 }
+local submenus = {}
+local rootCategory
 Settings = {
     RegisterCanvasLayoutCategory = function(panel, name)
         assert(name == "DamageColor")
-        return { GetID = function() return 17 end }
+        rootCategory = { GetID = function() return 17 end }
+        return rootCategory
+    end,
+    RegisterCanvasLayoutSubcategory = function(parent, canvas, name)
+        assert(parent == rootCategory, "Submenus must belong to DamageColor")
+        submenus[name] = canvas
+        return { GetID = function() return name end }
     end,
     RegisterAddOnCategory = function() end,
     OpenToCategory = function(id) opened = id end,
@@ -126,6 +135,17 @@ local function click(label)
     end
     error("Missing button: " .. label)
 end
+local function editTextColor(school)
+    for _, frame in ipairs(frames) do
+        if frame.choices and frame.choices[school] then frame.choices[school](); break end
+    end
+    for _, frame in ipairs(frames) do
+        if type(frame.text) == "string" and frame.text:find("Text color", 1, true) and frame.scripts.OnClick then
+            frame.scripts.OnClick(frame); return
+        end
+    end
+    error("Missing selected-type text color control")
+end
 local function loadAddon(saved)
     DamageColorDB = saved
     frames = {}
@@ -143,7 +163,7 @@ local addon = loadAddon(nil)
 rgb(addon.colors[2], 1, 0.95, 0.60)
 SlashCmdList.DAMAGECOLOR("")
 assert(opened == 17, "Slash command must open the settings category")
-click("Holy")
+editTextColor(2)
 ColorPickerFrame.rgb = { 0.1, 0.2, 0.3 }
 ColorPickerFrame.info.swatchFunc()
 rgb(DamageColorDB.colors[2], 0.1, 0.2, 0.3)
@@ -162,7 +182,7 @@ addon.SetColor(20, 0.9, 0.3, 0.6)
 rgb({ addon.GetColor(20) }, 0.9, 0.3, 0.6)
 rgb({ addon.GetColor(6) }, 0.4, 0.5, 0.6) -- Frostfire changes must not affect Other.
 rgb({ addon.GetColor(1) }, 1, 0.20, 0.20) -- Physical hits, including swings, share red.
-click("Holy")
+editTextColor(2)
 local staleCancel = ColorPickerFrame.info.cancelFunc
 click("Reset colors")
 staleCancel()
@@ -623,6 +643,9 @@ end
 assert(profileMenu)
 profileMenu:SetupMenu(profileMenu.menuGenerator)
 profileMenu.choices.Default()
+assert(addon.activeProfile == "My style" and addon.colors[1][1] == 0.5,
+    "Selecting a preview must not load the profile or discard edits")
+click("Load profile")
 assert(lastPopup and lastPopup.data == "Default", "Loading must display the discard warning")
 assert(addon.activeProfile == "My style" and addon.colors[1][1] == 0.5,
     "Opening or cancelling the warning must preserve edits")
@@ -653,7 +676,8 @@ addon.SetTextStyle(-1, "glow", 2, 1, 1, 1)
 local function outcomeWord(word)
     local count, found = 0
     for _, frame in ipairs(frames) do
-        if frame.drawLayer == "OVERLAY" and frame.text == word and frame.shown then
+        if frame.drawLayer == "OVERLAY" and frame.text == word and frame.shown
+            and frame.parent.scripts.OnUpdate then
             count, found = count + 1, frame
         end
     end
@@ -675,4 +699,86 @@ rgb(addon.colors[-1], 0.6, 0.7, 0.8)
 miss.parent.scripts.OnUpdate(miss.parent, 1.8)
 assert(outcomeWord("Miss") == 0 and outcomeWord("Resisted") == 0, "Outcome messages must expire")
 issecretvalue = nil
+addon = loadAddon({})
+assert(DamageColorDB.profiles["Power Glow (Lightning)"], "Lightning preset must be seeded on fresh installs")
+local names = addon.GetProfileNames()
+assert(#names == 5 and names[1] == "Default", "All five built-in profiles must be available")
+assert(addon.LoadProfile("White Outline"))
+assert(addon.GetTextStyle(1).mode == "outline" and addon.GetTextStyle(1).thickness == 1.25)
+rgb(addon.GetTextStyle(1).color, 1, 1, 1)
+assert(addon.LoadProfile("Default (Lightning)"))
+rgb(addon.colors[8], 0.21176470816135409, 0.17647059261798859, 1)
+assert(addon.LoadProfile("Power Glow"))
+assert(addon.GetTextStyle(-1).mode == "glow" and addon.GetTextStyle(-1).thickness == 2.25,
+    "Updated Power Glow must include the saved outcome styling")
+assert(addon.LoadProfile("Power Glow (Lightning)") and not addon.ProfileIsDirty())
+assert(addon.GetTextStyle(8).mode == "glow" and addon.GetTextStyle(8).thickness == 6)
+rgb(addon.GetTextStyle(8).color, 0.16078431904315951, 0.28235295414924622, 1)
+addon.SetColor(8, 0.1, 0.2, 0.3)
+assert(addon.SaveProfile("Power Glow (Lightning)"))
+addon = loadAddon(DamageColorDB)
+rgb(DamageColorDB.profiles["Power Glow (Lightning)"].colors[8], 0.1, 0.2, 0.3)
+assert(not addon.ProfileIsDirty(), "Lightning preset edits must survive reloads without being overwritten")
+-- Settings submenu navigation and previews must not mutate the active style.
+addon = loadAddon({})
+assert(submenus.Font and submenus.Style and submenus.Profiles and not submenus.General)
+for _, frame in ipairs(frames) do
+    assert(not (frame.scripts.OnClick and (frame.text == "General" or frame.text == "Style" or frame.text == "Profiles")),
+        "Navigation must use Settings submenus rather than buttons")
+end
+local generalPage, stylePage, profilesPage, profileSelector
+for _, frame in ipairs(frames) do
+    if frame.choices and frame.choices.arial then generalPage = frame.parent end
+    if frame.choices and frame.choices.glow then stylePage = frame.parent end
+    if frame.text == "Profile: Default" then profileSelector, profilesPage = frame, frame.parent end
+end
+local hideOption
+for _, frame in ipairs(frames) do
+    if frame.template == "UICheckButtonTemplate" then hideOption = frame end
+end
+assert(hideOption and hideOption.parent ~= generalPage, "Native-damage checkbox belongs on the root screen")
+submenus.Style:Show()
+editTextColor(2)
+local cancelledAfterTab = ColorPickerFrame.info.cancelFunc
+submenus.Style:Hide()
+submenus.Font:Show()
+addon.SetColor(2, 0.2, 0.3, 0.4)
+cancelledAfterTab()
+rgb(addon.colors[2], 0.2, 0.3, 0.4)
+addon.SetAppearance("arial", 96)
+addon.SetTextStyle(2, "glow", 3, 0.1, 0.2, 0.3)
+assert(addon.SaveProfile("Preview test"))
+addon.SetColor(2, 0.3, 0.4, 0.5)
+addon.SetTextStyle(2, "none", 3, 1, 1, 1)
+submenus.Font:Hide()
+submenus.Profiles:Show()
+profileSelector:SetupMenu(profileSelector.menuGenerator)
+profileSelector.choices.Default()
+assert(addon.activeProfile == "Preview test" and addon.appearance.size == 96 and addon.ProfileIsDirty())
+rgb(addon.colors[2], 0.3, 0.4, 0.5)
+local previewCount = 0
+for _, frame in ipairs(frames) do
+    if frame.drawLayer == "OVERLAY" and frame.parent and frame.parent.parent
+        and frame.parent.parent.parent == profilesPage then
+        previewCount = previewCount + 1
+        assert(frame.fontSize == 48 and frame.fontPath == STANDARD_TEXT_FONT,
+            "Selected saved profile must supply its own font/size")
+    end
+end
+assert(previewCount == 10, "Profile preview must compare all ten number types side by side")
+profileSelector.choices["Preview test"]()
+local savedGlowLayers = 0
+for _, frame in ipairs(frames) do
+    if frame.drawLayer == "OVERLAY" and frame.parent and frame.parent.parent
+        and frame.parent.parent.parent == profilesPage then
+        assert(frame.fontSize == 96 and frame.fontPath == addon.fonts[3].path)
+    end
+    if frame.drawLayer == "ARTWORK" and frame.shown and frame.color and frame.color[1] == 0.1
+        and frame.parent and frame.parent.parent and frame.parent.parent.parent == profilesPage then
+        savedGlowLayers = savedGlowLayers + 1
+        assert(frame.fontSize == 96 and frame.fontPath == addon.fonts[3].path)
+    end
+end
+assert(savedGlowLayers == 24, "Saved-profile preview must render its glow independently of the current style")
+assert(addon.GetTextStyle(2).mode == "none", "Previewing saved glow must leave working edges unchanged")
 print("PASS: per-school outlines/glow/none, color cancel, thickness, layer cleanup, persistence, animation, AoE, death linger, and native visibility")

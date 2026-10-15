@@ -14,8 +14,9 @@ function addon.HideDamageText(text)
     local effect = effects[text]
     if effect then for _, layer in ipairs(effect.layers) do layer:Hide() end end
 end
-function addon.UpdateTextEffect(text, school, size, alpha)
-    local style = addon.GetTextStyle(school)
+function addon.UpdateTextEffect(text, school, size, alpha, previewStyle, previewFont)
+    local style = previewStyle or addon.GetTextStyle(school)
+    local fontPath = previewFont or addon.GetFont().path
     local count = style.mode == "none" and 0 or (style.mode == "glow" and 24 or 8)
     local effect = effects[text]
     if not effect then
@@ -25,7 +26,7 @@ function addon.UpdateTextEffect(text, school, size, alpha)
     end
     local r, g, b = unpack(style.color)
     local value = text:GetText() or ""
-    local signature = table.concat({ addon.GetFont().path, size, style.mode, style.thickness, r, g, b, value }, "|")
+    local signature = table.concat({ fontPath, size, style.mode, style.thickness, r, g, b, value }, "|")
     local changed = effect.signature ~= signature
     effect.signature = signature
     for i = 1, math.max(count, #effect.layers) do
@@ -40,7 +41,7 @@ function addon.UpdateTextEffect(text, school, size, alpha)
             if changed then
                 local direction = directions[(i - 1) % 8 + 1]
                 local radius = style.thickness * (style.mode == "glow" and ring * 0.65 or 1)
-                addon.ApplyFont(layer, size)
+                if layer:SetFont(fontPath, size, "") == false then layer:SetFont(STANDARD_TEXT_FONT, size, "") end
                 layer:SetText(value)
                 layer:SetTextColor(r, g, b)
                 layer:ClearAllPoints()

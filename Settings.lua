@@ -6,7 +6,7 @@ local scroll = CreateFrame("ScrollFrame", nil, canvas, "UIPanelScrollFrameTempla
 scroll:SetPoint("TOPLEFT", 0, 0)
 scroll:SetPoint("BOTTOMRIGHT", -28, 0)
 local panel = CreateFrame("Frame", nil, scroll)
-panel:SetSize(560, 1236)
+panel:SetSize(560, 300)
 scroll:SetScrollChild(panel)
 local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 title:SetPoint("TOPLEFT", 16, -16)
@@ -15,14 +15,32 @@ local description = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 description:SetPoint("TOPLEFT", 16, -48)
 description:SetWidth(520)
 description:SetJustifyH("LEFT")
-description:SetText("Choose your damage font, size, and colors. Changes apply immediately and are saved across reloads. Critical hits are twice the selected size.")
+description:SetText("Choose Font, Style, or Profiles from the DamageColor submenus to customize your numbers.")
 
-local fontLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-fontLabel:SetPoint("TOPLEFT", 16, -240)
+local pages, pageCanvases = {}, {}
+for _, name in ipairs({ "Font", "Style", "Profiles" }) do
+    local pageCanvas = CreateFrame("Frame", nil, UIParent)
+    pageCanvas:Hide()
+    local pageScroll = CreateFrame("ScrollFrame", nil, pageCanvas, "UIPanelScrollFrameTemplate")
+    pageScroll:SetPoint("TOPLEFT", 0, 0)
+    pageScroll:SetPoint("BOTTOMRIGHT", -28, 0)
+    local page = CreateFrame("Frame", nil, pageScroll)
+    page:SetSize(560, 640)
+    pageScroll:SetScrollChild(page)
+    local heading = pageCanvas:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    heading:SetPoint("TOPLEFT", 16, -16)
+    heading:SetText(name)
+    pageScroll:SetPoint("TOPLEFT", 0, -56)
+    pages[name], pageCanvases[name] = page, pageCanvas
+end
+local general, stylePanel, profilesPanel = pages.Font, pages.Style, pages.Profiles
+
+local fontLabel = general:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+fontLabel:SetPoint("TOPLEFT", 16, -20)
 fontLabel:SetText("Font")
-local fontDropdown = CreateFrame("DropdownButton", nil, panel, "WowStyle1DropdownTemplate")
+local fontDropdown = CreateFrame("DropdownButton", nil, general, "WowStyle1DropdownTemplate")
 fontDropdown:SetSize(240, 28)
-fontDropdown:SetPoint("TOPLEFT", 110, -232)
+fontDropdown:SetPoint("TOPLEFT", 90, -12)
 fontDropdown:SetupMenu(function(_, root)
     for _, font in ipairs(addon.fonts) do
         root:CreateRadio(font.name, function(key) return addon.appearance.font == key end,
@@ -30,10 +48,10 @@ fontDropdown:SetupMenu(function(_, root)
     end
 end)
 
-local sizeLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-sizeLabel:SetPoint("TOPLEFT", 16, -282)
-local sizeSlider = CreateFrame("Slider", nil, panel, "OptionsSliderTemplate")
-sizeSlider:SetPoint("TOPLEFT", 16, -310)
+local sizeLabel = general:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+sizeLabel:SetPoint("TOPLEFT", 16, -100)
+local sizeSlider = CreateFrame("Slider", nil, general, "OptionsSliderTemplate")
+sizeSlider:SetPoint("TOPLEFT", 16, -128)
 sizeSlider:SetSize(320, 18)
 sizeSlider:SetMinMaxValues(12, 96)
 sizeSlider:SetValueStep(1)
@@ -43,7 +61,7 @@ sizeSlider:SetScript("OnValueChanged", function(_, value)
 end)
 local hideNative = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
 hideNative:SetSize(26, 26)
-hideNative:SetPoint("TOPLEFT", 16, -344)
+hideNative:SetPoint("TOPLEFT", 16, -100)
 local hideLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 hideLabel:SetPoint("LEFT", hideNative, "RIGHT", 6, 0)
 hideLabel:SetText("Hide Blizzard damage")
@@ -57,7 +75,7 @@ local schools = {
     { 0, "Other" },
     { -1, "Miss / resist text" },
 }
-local rows = {}
+
 local pickerSession
 local function closeOwnedPicker()
     if not pickerSession then return end
@@ -101,43 +119,28 @@ local function openPicker(school, edge)
     })
 end
 
-for i, school in ipairs(schools) do
-    local key = school[1]
-    local row = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    row:SetSize(360, 28)
-    row:SetPoint("TOPLEFT", 16, -404 - (i - 1) * 38)
-    row:SetText(school[2])
-    row:SetScript("OnClick", function() openPicker(key) end)
-    local swatch = row:CreateTexture(nil, "OVERLAY")
-    swatch:SetSize(24, 20)
-    swatch:SetPoint("LEFT", row, "RIGHT", 12, 0)
-    local sample = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    sample:SetPoint("LEFT", swatch, "RIGHT", 12, 0)
-    rows[key] = { swatch = swatch, sample = sample }
-end
-
 local edgeSchool = 1
 local edgeNames = { none = "None", outline = "Outline", glow = "Soft glow" }
-local edgeTitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-edgeTitle:SetPoint("TOPLEFT", 16, -802)
-edgeTitle:SetText("Outline and glow")
-local edgeSchoolDropdown = CreateFrame("DropdownButton", nil, panel, "WowStyle1DropdownTemplate")
+local edgeTitle = stylePanel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+edgeTitle:SetPoint("TOPLEFT", 16, -16)
+edgeTitle:SetText("Number type")
+local edgeSchoolDropdown = CreateFrame("DropdownButton", nil, stylePanel, "WowStyle1DropdownTemplate")
 edgeSchoolDropdown:SetSize(350, 28)
-edgeSchoolDropdown:SetPoint("TOPLEFT", 16, -834)
-local edgeModeDropdown = CreateFrame("DropdownButton", nil, panel, "WowStyle1DropdownTemplate")
+edgeSchoolDropdown:SetPoint("TOPLEFT", 16, -48)
+local edgeModeDropdown = CreateFrame("DropdownButton", nil, stylePanel, "WowStyle1DropdownTemplate")
 edgeModeDropdown:SetSize(240, 28)
-edgeModeDropdown:SetPoint("TOPLEFT", 16, -876)
-local edgeWidthLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-edgeWidthLabel:SetPoint("TOPLEFT", 16, -920)
-local edgeWidth = CreateFrame("Slider", nil, panel, "OptionsSliderTemplate")
+edgeModeDropdown:SetPoint("TOPLEFT", 16, -138)
+local edgeWidthLabel = stylePanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+edgeWidthLabel:SetPoint("TOPLEFT", 16, -180)
+local edgeWidth = CreateFrame("Slider", nil, stylePanel, "OptionsSliderTemplate")
 edgeWidth:SetSize(320, 18)
-edgeWidth:SetPoint("TOPLEFT", 16, -948)
+edgeWidth:SetPoint("TOPLEFT", 16, -208)
 edgeWidth:SetMinMaxValues(1, 6)
 edgeWidth:SetValueStep(0.25)
 edgeWidth:SetObeyStepOnDrag(true)
-local edgeColor = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+local edgeColor = CreateFrame("Button", nil, stylePanel, "UIPanelButtonTemplate")
 edgeColor:SetSize(240, 28)
-edgeColor:SetPoint("TOPLEFT", 16, -990)
+edgeColor:SetPoint("TOPLEFT", 16, -250)
 edgeColor:SetScript("OnClick", function() openPicker(edgeSchool, true) end)
 local edgeSwatch = edgeColor:CreateTexture(nil, "OVERLAY")
 edgeSwatch:SetSize(24, 20)
@@ -149,19 +152,19 @@ local function setEdge(mode, width)
 end
 edgeWidth:SetScript("OnValueChanged", function(_, value) setEdge(nil, value) end)
 
-local sampleBox = CreateFrame("Frame", nil, panel)
+local sampleBox = CreateFrame("Frame", nil, stylePanel)
 sampleBox:SetSize(176, 100)
 sampleBox:SetPoint("CENTER", edgeWidth, "RIGHT", 112, 0)
-local sampleTitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+local sampleTitle = stylePanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
 sampleTitle:SetPoint("BOTTOM", sampleBox, "TOP", 0, 8)
 sampleTitle:SetText("Number preview")
 local sampleFrame = CreateFrame("Frame", nil, sampleBox)
 sampleFrame:SetSize(1, 1)
 sampleFrame:SetPoint("CENTER", sampleBox, "CENTER", 0, 0)
-local sampleCritical = CreateFrame("CheckButton", nil, panel, "ChatConfigCheckButtonTemplate")
+local sampleCritical = CreateFrame("CheckButton", nil, stylePanel, "ChatConfigCheckButtonTemplate")
 sampleCritical:SetSize(26, 26)
 sampleCritical:SetPoint("TOPLEFT", sampleBox, "BOTTOMLEFT", 8, -8)
-local criticalLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+local criticalLabel = stylePanel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 criticalLabel:SetPoint("LEFT", sampleCritical, "RIGHT", 6, 0)
 criticalLabel:SetText("Critical hit")
 local numberSample = sampleFrame:CreateFontString(nil, "OVERLAY")
@@ -170,6 +173,24 @@ numberSample:SetPoint("CENTER", sampleFrame, "CENTER", 0, 0)
 numberSample:SetText("123")
 local previewCritical = false
 
+local textColor = CreateFrame("Button", nil, stylePanel, "UIPanelButtonTemplate")
+textColor:SetSize(240, 28)
+textColor:SetPoint("TOPLEFT", 16, -94)
+textColor:SetScript("OnClick", function() openPicker(edgeSchool) end)
+local textSwatch = textColor:CreateTexture(nil, "OVERLAY")
+textSwatch:SetSize(24, 20)
+textSwatch:SetPoint("LEFT", textColor, "RIGHT", 12, 0)
+local fontSampleFrame = CreateFrame("Frame", nil, general)
+fontSampleFrame:SetSize(1, 1)
+fontSampleFrame:SetPoint("CENTER", general, "TOPLEFT", 450, -66)
+local fontSample = fontSampleFrame:CreateFontString(nil, "OVERLAY")
+addon.ApplyFont(fontSample, addon.appearance.size)
+fontSample:SetPoint("CENTER", fontSampleFrame, "CENTER", 0, 0)
+fontSample:SetText("123")
+fontSample:SetTextColor(1, 1, 1)
+local fontPreviewLabel = general:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+fontPreviewLabel:SetPoint("TOPLEFT", 380, -8)
+fontPreviewLabel:SetText("Font preview")
 local refreshProfiles
 local function refresh()
     if refreshProfiles then refreshProfiles() end
@@ -189,13 +210,11 @@ local function refresh()
     local er, eg, eb = unpack(style.color)
     edgeSwatch:SetColorTexture(er, eg, eb, 1)
     edgeColor:SetText(string.format("Edge color  #%02X%02X%02X", math.floor(er * 255 + 0.5), math.floor(eg * 255 + 0.5), math.floor(eb * 255 + 0.5)))
-    for school, row in pairs(rows) do
-        local r, g, b = unpack(addon.colors[school])
-        row.swatch:SetColorTexture(r, g, b, 1)
-        row.sample:SetTextColor(r, g, b)
-        row.sample:SetText(string.format("123  #%02X%02X%02X",
-            math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5)))
-    end
+    local r, g, b = unpack(addon.colors[edgeSchool])
+    textSwatch:SetColorTexture(r, g, b, 1)
+    textColor:SetText(string.format("Text color  #%02X%02X%02X", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5)))
+    addon.ApplyFont(fontSample, addon.appearance.size)
+    fontSampleFrame:SetScale(math.min(1, 176 / math.max(1, fontSample:GetStringWidth()), 100 / math.max(1, fontSample:GetStringHeight())))
     local sampleSize = addon.appearance.size * (previewCritical and edgeSchool ~= -1 and 2 or 1)
     addon.ApplyFont(numberSample, sampleSize)
     numberSample:SetText(edgeSchool == -1 and "Miss" or "123")
@@ -242,31 +261,73 @@ end
 panel:SetScript("OnShow", refresh)
 canvas:SetScript("OnHide", closeOwnedPicker)
 
-local profileDropdown = CreateFrame("DropdownButton", nil, panel, "WowStyle1DropdownTemplate")
+local profileDropdown = CreateFrame("DropdownButton", nil, profilesPanel, "WowStyle1DropdownTemplate")
 profileDropdown:SetSize(240, 28)
-profileDropdown:SetPoint("TOPLEFT", 16, -92)
-local profileName = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
+profileDropdown:SetPoint("TOPLEFT", 16, -24)
+local profileName = CreateFrame("EditBox", nil, profilesPanel, "InputBoxTemplate")
 profileName:SetSize(240, 28)
-profileName:SetPoint("TOPLEFT", 22, -132)
+profileName:SetPoint("TOPLEFT", 22, -84)
 profileName:SetAutoFocus(false)
 profileName:SetMaxLetters(40)
 profileName:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 profileName:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-local saveProfile = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+local profileNameLabel = profilesPanel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+profileNameLabel:SetPoint("TOPLEFT", 16, -64)
+profileNameLabel:SetText("Save current settings as")
+local saveProfile = CreateFrame("Button", nil, profilesPanel, "UIPanelButtonTemplate")
 saveProfile:SetSize(160, 28)
-saveProfile:SetPoint("TOPLEFT", 280, -132)
+saveProfile:SetPoint("TOPLEFT", 280, -84)
 saveProfile:SetText("Save profile")
-local profileStatus = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-profileStatus:SetPoint("TOPLEFT", 16, -172)
+local profileStatus = profilesPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+profileStatus:SetPoint("TOPLEFT", 16, -128)
 profileStatus:SetWidth(520)
 profileStatus:SetJustifyH("LEFT")
+local selectedProfile
+local profileSamples = {}
+local profilePreviewTitle = profilesPanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+profilePreviewTitle:SetPoint("TOPLEFT", 16, -184)
+profilePreviewTitle:SetText("Saved profile preview (scaled to fit)")
+for i, school in ipairs(schools) do
+    local cell = CreateFrame("Frame", nil, profilesPanel)
+    cell:SetSize(100, 120)
+    cell:SetPoint("TOPLEFT", 16 + ((i - 1) % 5) * 106, -216 - math.floor((i - 1) / 5) * 140)
+    local label = cell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    label:SetPoint("TOP", cell, "TOP", 0, 0)
+    label:SetWidth(100)
+    label:SetText(school[1] == 1 and "Physical" or (school[1] == -1 and "Miss / Resist" or school[2]))
+    local holder = CreateFrame("Frame", nil, cell)
+    holder:SetSize(1, 1)
+    holder:SetPoint("CENTER", cell, "CENTER", 0, -8)
+    local text = holder:CreateFontString(nil, "OVERLAY")
+    addon.ApplyFont(text, addon.appearance.size)
+    text:SetPoint("CENTER", holder, "CENTER", 0, 0)
+    text:SetText(school[1] == -1 and "Miss" or "123")
+    profileSamples[school[1]] = { text = text, holder = holder }
+end
 refreshProfiles = function()
-    local name = addon.activeProfile or "Default"
+    local name = selectedProfile or addon.activeProfile or "Default"
     profileDropdown:OverrideText("Profile: " .. name)
-    profileStatus:SetText(addon.ProfileIsDirty() and "Unsaved profile changes. Enter a name and save to keep them."
-        or "Saved style. Enter a new name to save a copy. Default stays fixed.")
+    profileStatus:SetText("Active: " .. (addon.activeProfile or "Default") .. ". " .. (addon.ProfileIsDirty()
+        and "Unsaved changes. Save to keep them before loading another profile."
+        or "Saved. Enter a new name to save a copy. Default stays fixed."))
+    local profile = addon.GetProfile(name) or addon.GetDefaultProfile()
+    local path = STANDARD_TEXT_FONT
+    for _, font in ipairs(addon.fonts) do
+        if font.key == profile.appearance.font then path = font.path end
+    end
+    for school, sample in pairs(profileSamples) do
+        local style, size = profile.textStyles[school], profile.appearance.size
+        if sample.text:SetFont(path, size, "") == false then sample.text:SetFont(STANDARD_TEXT_FONT, size, "") end
+        sample.text:SetTextColor(unpack(profile.colors[school]))
+        addon.UpdateTextEffect(sample.text, school, size, 1, style, path)
+        local padding = style.mode == "none" and 0 or style.thickness * 4
+        sample.holder:SetScale(math.min(1, 92 / math.max(1, sample.text:GetStringWidth() + padding),
+            88 / math.max(1, sample.text:GetStringHeight() + padding)))
+        sample.text:Show()
+    end
 end
 addon.OnProfilesChanged = function()
+    selectedProfile = addon.activeProfile
     profileName:SetText(addon.activeProfile or "Default")
     refreshProfiles()
 end
@@ -281,9 +342,17 @@ StaticPopupDialogs.DAMAGECOLOR_LOAD_PROFILE = {
 }
 profileDropdown:SetupMenu(function(_, root)
     for _, name in ipairs(addon.GetProfileNames()) do
-        root:CreateRadio(name, function(key) return addon.activeProfile == key end,
-            function(key) StaticPopup_Show("DAMAGECOLOR_LOAD_PROFILE", key, nil, key) end, name)
+        root:CreateRadio(name, function(key) return (selectedProfile or addon.activeProfile) == key end,
+            function(key) selectedProfile = key; refreshProfiles() end, name)
     end
+end)
+local loadProfile = CreateFrame("Button", nil, profilesPanel, "UIPanelButtonTemplate")
+loadProfile:SetSize(160, 28)
+loadProfile:SetPoint("TOPLEFT", 280, -24)
+loadProfile:SetText("Load profile")
+loadProfile:SetScript("OnClick", function()
+    local name = selectedProfile or addon.activeProfile or "Default"
+    StaticPopup_Show("DAMAGECOLOR_LOAD_PROFILE", name, nil, name)
 end)
 saveProfile:SetScript("OnClick", function()
     closeOwnedPicker()
@@ -292,41 +361,47 @@ saveProfile:SetScript("OnClick", function()
 end)
 profileName:SetText(addon.activeProfile or "Default")
 
-local reset = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+local reset = CreateFrame("Button", nil, stylePanel, "UIPanelButtonTemplate")
 reset:SetSize(160, 28)
-reset:SetPoint("TOPLEFT", 16, -1082)
+reset:SetPoint("TOPLEFT", 16, -350)
 reset:SetText("Reset colors")
 reset:SetScript("OnClick", function()
     closeOwnedPicker()
     addon.ResetColors()
 end)
-local preview = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+local preview = CreateFrame("Button", nil, stylePanel, "UIPanelButtonTemplate")
 preview:SetSize(160, 28)
 preview:SetPoint("LEFT", reset, "RIGHT", 12, 0)
 preview:SetText("Preview colors")
 preview:SetScript("OnClick", function() addon.ShowPreview() end)
-local resetText = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+local resetText = CreateFrame("Button", nil, general, "UIPanelButtonTemplate")
 resetText:SetSize(160, 28)
-resetText:SetPoint("LEFT", preview, "RIGHT", 12, 0)
+resetText:SetPoint("TOPLEFT", 16, -180)
 resetText:SetText("Reset font / size")
 resetText:SetScript("OnClick", function() addon.SetAppearance("default", 48) end)
-local resetEdge = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+local resetEdge = CreateFrame("Button", nil, stylePanel, "UIPanelButtonTemplate")
 resetEdge:SetSize(160, 28)
-resetEdge:SetPoint("TOPLEFT", 16, -1032)
+resetEdge:SetPoint("TOPLEFT", 16, -300)
 resetEdge:SetText("Reset selected edge")
 resetEdge:SetScript("OnClick", function()
     closeOwnedPicker()
     addon.ResetTextStyle(edgeSchool)
 end)
 
-local note = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-note:SetPoint("TOPLEFT", 16, -1130)
+local note = stylePanel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+note:SetPoint("TOPLEFT", 16, -404)
 note:SetWidth(520)
 note:SetJustifyH("LEFT")
-note:SetText("Choose a school under Outline and glow to customize its edge independently. Soft glow is a layered halo, rather than a shader blur. All attackers are included. Frostfire has its own settings; other mixed schools use Other.")
+note:SetText("Choose a number type to customize its text and edge together. Soft glow is a layered halo, rather than a shader blur. All attackers are included. Frostfire has its own settings; other mixed schools use Other.")
 
 local category = Settings.RegisterCanvasLayoutCategory(canvas, "DamageColor")
 Settings.RegisterAddOnCategory(category)
+for _, name in ipairs({ "Font", "Style", "Profiles" }) do
+    local pageCanvas = pageCanvases[name]
+    Settings.RegisterCanvasLayoutSubcategory(category, pageCanvas, name)
+    pageCanvas:SetScript("OnShow", refresh)
+    pageCanvas:SetScript("OnHide", closeOwnedPicker)
+end
 function addon.OpenSettings()
     Settings.OpenToCategory(category:GetID())
 end
