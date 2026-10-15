@@ -47,6 +47,7 @@ function methods:GetTop()
     return self.y + 10
 end
 function methods:GetEffectiveScale() return self.scale or 1 end
+function methods:GetHeight() return self.height or 1080 end
 function methods:IsForbidden() return self.forbidden or false end
 function methods:IsVisible() return self.shown end
 function methods:SetScript(name, fn) self.scripts[name] = fn end
@@ -931,3 +932,39 @@ for _, slider in ipairs(frames) do
 end
 assert(sliderCount == 5 and placementCount == 2)
 print("PASS: all slider arrows, one-unit increments, bounds, and preserved saved placement")
+
+-- High nameplates and dense critical bursts must remain below the screen top,
+-- including peak animation size, glow, drift, and a resized UIParent.
+C_NamePlate.GetNamePlateForUnit = function() return plate end
+plate.x, plate.y, plate.scale, plate.shown = 400, 1500, 0.6, true
+addon = loadAddon(nil)
+addon.SetTextStyle(1, "glow", 6, 1, 1, 1)
+local highListener
+for _, frame in ipairs(frames) do
+    if frame.events.UNIT_COMBAT == "target" then highListener = frame end
+end
+for i = 1, 12 do
+    highListener.scripts.OnEvent(highListener, "UNIT_COMBAT", "target", "WOUND", "CRITICAL", 99000 + i, 1)
+end
+local highLive
+local function assertBelowTop()
+    local count = 0
+    for _, frame in ipairs(frames) do
+        if frame.drawLayer == "OVERLAY" and frame.shown and tonumber(frame.text)
+            and tonumber(frame.text) > 99000 then
+            count = count + 1
+            highLive = frame.parent
+            assert(frame.point[5] + frame.fontSize / 2 + 6 * 1.95 <= UIParent:GetHeight() - 8 + 0.001,
+                "Outgoing critical text and glow must stay below the screen ceiling")
+        end
+    end
+    assert(count == 12, "Clamping must preserve every hit")
+end
+assertBelowTop()
+highLive.scripts.OnUpdate(highLive, 0.08)
+assertBelowTop()
+UIParent.height = 720
+highLive.scripts.OnUpdate(highLive, 1.3)
+assertBelowTop()
+UIParent.height = nil
+print("PASS: outgoing screen ceiling, critical pops, glow, bursts, drift, and resizing")

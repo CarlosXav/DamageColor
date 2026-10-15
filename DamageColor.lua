@@ -92,8 +92,29 @@ end
 -- Reserve the settled size with a little breathing room. Brief peak pops may
 -- touch, keeping sustained bursts compact rather than spreading across the screen.
 -- Frame-relative labels can be compared without reading protected geometry.
+local function outgoingCeiling(label)
+    if label.incoming then return end
+    local ok, ceiling = pcall(function()
+        local height = UIParent:GetHeight()
+        if secret(height) or type(height) ~= "number" or height <= 0 then return end
+        local anchorY = 0
+        if label.anchor then
+            local _, y = readPlatePosition(label.anchor)
+            if not y then return end
+            anchorY = y
+        end
+        local style = addon.GetTextStyle(label.school)
+        local edge = style.mode == "none" and 0 or style.thickness * (style.mode == "glow" and 1.95 or 1)
+        -- Reserve the peak pop height throughout the animation so the ceiling
+        -- stays steady as text grows, settles, and drifts upward.
+        return height - anchorY - (label.peakHeight or label.baseSize * 1.5) / 2 - edge - 8
+    end)
+    if ok then return ceiling end
+end
+
 local function placeWithoutOverlap(label)
     addon.ApplyFont(label.text, label.baseSize * 1.1)
+    label.peakHeight = label.text:GetStringHeight() / 1.1 * 1.5
     local style = addon.GetTextStyle(label.school)
     local padding = 4 + (style.mode == "none" and 0 or style.thickness * 4)
     label.width = label.text:GetStringWidth() + padding
@@ -101,10 +122,13 @@ local function placeWithoutOverlap(label)
     local originX, originY = label.x, label.y
     local bestX, bestY, bestOverlap
     local candidates = {}
+    local ceiling = outgoingCeiling(label)
     for row = 0, 14 do
         for _, lane in ipairs({ 0, -1, 1, -2, 2, -3, 3, -4, 4 }) do
             local dx, dy = lane * label.width * 0.5, row * label.height * 0.5
-            candidates[#candidates + 1] = { x = originX + dx, y = originY + dy,
+            local y = originY + dy
+            if ceiling then y = math.min(y, ceiling) end
+            candidates[#candidates + 1] = { x = originX + dx, y = y,
                 distance = dx * dx + dy * dy, order = #candidates + 1 }
         end
     end
@@ -118,7 +142,10 @@ local function placeWithoutOverlap(label)
             for _, other in ipairs(labels) do
                 if other ~= label and other.active and other.anchor == label.anchor and other.incoming == label.incoming then
                     local dx = math.abs(x - other.x)
-                    local dy = math.abs(y - (other.y + other.age * 12))
+                    local otherY = other.y + other.age * 12
+                    local otherCeiling = outgoingCeiling(other)
+                    if otherCeiling then otherY = math.min(otherY, otherCeiling) end
+                    local dy = math.abs(y - otherY)
                     local width = (label.width + other.width) / 2 - dx
                     local height = (label.height + other.height) / 2 - dy
                     if width > 0 and height > 0 then overlap = overlap + width * height end
@@ -149,13 +176,16 @@ local function positionLabel(label)
             end
         end
     end
+    local y = label.y + label.age * 12
+    local ceiling = outgoingCeiling(label)
+    if ceiling then y = math.min(y, ceiling) end
     if label.incoming then
         label.text:SetPoint("CENTER", UIParent, "CENTER", label.x + addon.damageTaken.x, label.y + addon.damageTaken.y + label.age * 12)
     elseif label.anchor then
-        label.text:SetPoint("CENTER", label.anchor, "TOP", label.x, label.y + label.age * 12)
+        label.text:SetPoint("CENTER", label.anchor, "TOP", label.x, y)
     else
         -- Snapshot when readable: old hits remain at their impact position.
-        label.text:SetPoint("CENTER", UIParent, "BOTTOMLEFT", label.x, label.y + label.age * 12)
+        label.text:SetPoint("CENTER", UIParent, "BOTTOMLEFT", label.x, y)
     end
     local scale
     if label.age < 0.08 then

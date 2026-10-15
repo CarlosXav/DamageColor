@@ -16,6 +16,10 @@ and text edges. Brief pop animations may touch so bursts stay more compact.
 Placement uses a bounded search and picks the least crowded position if all
 candidates are occupied. When nameplate coordinates are restricted, avoidance
 works within each shared nameplate anchor; separate restricted plates may overlap.
+Outgoing numbers have an automatic top limit with an 8-unit margin, reserving
+room for critical pops and edges throughout their upward drift. This limit
+requires readable screen and nameplate coordinates; restricted anchors retain
+their existing placement behavior.
 
 Target client: **1.60.1**, build **70374**, dated **October 12, 2026**.
 Addon interface: **16001**.
