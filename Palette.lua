@@ -22,6 +22,8 @@ addon.fonts = {
     { key = "skurri", name = "Skurri", path = "Fonts\\skurri.ttf" },
 }
 addon.appearance = { font = "default", size = 48 }
+addon.showDamageDealt = true
+addon.showDamageTaken = true
 addon.hideBlizzardDamage = true
 addon.hideBlizzardDamageTaken = true
 addon.damageTaken = { size = 24, x = 0, y = -250 }
@@ -63,6 +65,14 @@ function addon.SetDamageTaken(size, x, y)
     addon.damageTaken = value
     if DamageColorDB then DamageColorDB.damageTaken = { size = value.size, x = value.x, y = value.y } end
     if addon.OnDamageTakenChanged then addon.OnDamageTakenChanged() end
+end
+function addon.SetDamageNumbersVisible(incoming, visible)
+    if type(visible) ~= "boolean" then return end
+    local key = incoming and "showDamageTaken" or "showDamageDealt"
+    addon[key] = visible
+    if DamageColorDB then DamageColorDB[key] = visible end
+    if addon.RefreshDamageVisibility then addon.RefreshDamageVisibility() end
+    if addon.OnDamageVisibilityChanged then addon.OnDamageVisibilityChanged() end
 end
 local function copy(color) return { color[1], color[2], color[3] } end
 local function valid(color)
@@ -120,7 +130,7 @@ function addon.ResetColors()
 end
 
 function addon.GetDefaultProfile()
-    local profile = { colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
+    local profile = { showDamageDealt = true, showDamageTaken = true, colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
         damageTaken = { size = 24, x = 0, y = -250 } }
     for school, color in pairs(defaults) do
         profile.colors[school] = copy(color)
@@ -178,6 +188,10 @@ loader:SetScript("OnEvent", function(self, _, name)
     DamageColorDB.appearance = { font = addon.appearance.font, size = addon.appearance.size }
     if type(DamageColorDB.hideBlizzardDamage) ~= "boolean" then DamageColorDB.hideBlizzardDamage = true end
     addon.hideBlizzardDamage = DamageColorDB.hideBlizzardDamage
+    for _, key in ipairs({ "showDamageDealt", "showDamageTaken" }) do
+        if type(DamageColorDB[key]) ~= "boolean" then DamageColorDB[key] = true end
+        addon[key] = DamageColorDB[key]
+    end
     DamageColorDB.textHeightCap = nil -- Remove the retired screen-cap setting.
     local taken = addon.NormalizeDamageTaken(DamageColorDB.damageTaken, addon.appearance.size)
     addon.SetDamageTaken(taken.size, taken.x, taken.y)

@@ -55,7 +55,7 @@ on October 14, 2026, including the glow presets' Miss/Resisted styling. Bundled
 presets seed missing profiles; existing saved customizations are preserved.
 
 Profiles include font, size, all school colors, all outline/glow modes, thicknesses
-and colors, both Blizzard visibility checkboxes, and incoming damage size and placement. Temporary preview controls,
+and colors, both custom-number visibility checkboxes, both Blizzard visibility checkboxes, and incoming damage size and placement. Temporary preview controls,
 overlay on/off state, and native CVar restoration bookkeeping are excluded.
 Existing working settings are preserved on upgrade. Saved changes to Power Glow
 are retained across addon updates.
@@ -129,6 +129,13 @@ Colored outlines use offset glyph layers because the native outline flags have
 fixed black weights. Soft glow uses three translucent rings to approximate a
 blurred halo; it is not a true Gaussian blur. Layers are allocated only as needed
 and reused with the damage-number pool (8 for outline, up to 24 for glow).
+
+The root settings page includes **Show DamageColor damage dealt** and
+**Show DamageColor damage taken**, both enabled by default. Uncheck either to
+stop that kind of custom number and clear its active numbers immediately.
+These choices are saved account-wide and in profiles, independently of the
+Blizzard visibility checkboxes. `/dc on` and `/dc off` still control the whole
+overlay for the session. The damage-taken preview respects its visibility choice.
 
 **Hide Blizzard damage** is checked by default and saved account-wide. It hides
 native outgoing damage numbers using `floatingCombatTextCombatDamage_v2`, with

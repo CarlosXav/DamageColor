@@ -964,3 +964,46 @@ assert(addon.GetProfile("Custom").appearance.size == 60)
 assert(addon.damageTaken.size == 32 and addon.damageTaken.x == 1200 and addon.damageTaken.y == -1000,
     "Removing cap settings must preserve unrelated working settings")
 print("PASS: retired cap removed while preserving working settings and custom profiles")
+
+-- Independent number visibility survives reloads and profile save/load.
+addon = loadAddon({})
+assert(addon.showDamageDealt and addon.showDamageTaken)
+local function visibilityCheck(text)
+    for _, label in ipairs(frames) do
+        if label.text == text and label.point then return label.point[2] end
+    end
+end
+local dealtCheck = visibilityCheck("Show DamageColor damage dealt")
+local takenCheck = visibilityCheck("Show DamageColor damage taken")
+assert(dealtCheck and takenCheck and dealtCheck:GetChecked() and takenCheck:GetChecked())
+local playerListener
+for _, frame in ipairs(frames) do
+    if frame.events.UNIT_COMBAT == "player" then playerListener = frame end
+end
+playerListener.scripts.OnEvent(playerListener, "UNIT_COMBAT", "player", "WOUND", "", 76543, 1)
+local hit
+for _, frame in ipairs(frames) do
+    if frame.drawLayer == "OVERLAY" and frame.text == "76543" and frame.shown then hit = frame end
+end
+assert(hit)
+dealtCheck:SetChecked(false)
+dealtCheck.scripts.OnClick(dealtCheck)
+assert(hit.shown and not addon.showDamageDealt and addon.showDamageTaken)
+takenCheck:SetChecked(false)
+takenCheck.scripts.OnClick(takenCheck)
+assert(not hit.shown and not addon.showDamageTaken)
+playerListener.scripts.OnEvent(playerListener, "UNIT_COMBAT", "player", "WOUND", "", 76542, 1)
+for _, frame in ipairs(frames) do
+    assert(not (frame.drawLayer == "OVERLAY" and frame.text == "76542" and frame.shown))
+end
+assert(addon.hideBlizzardDamage and addon.hideBlizzardDamageTaken)
+assert(addon.SaveProfile("Hidden numbers"))
+addon = loadAddon(DamageColorDB)
+assert(not addon.showDamageDealt and not addon.showDamageTaken and not addon.ProfileIsDirty())
+addon.SetDamageNumbersVisible(false, true)
+assert(addon.ProfileIsDirty())
+assert(addon.LoadProfile("Hidden numbers"))
+assert(not addon.showDamageDealt and not addon.showDamageTaken)
+assert(addon.LoadProfile("Default"))
+assert(addon.showDamageDealt and addon.showDamageTaken)
+print("PASS: independent number visibility, active label clearing, persistence, and profiles")

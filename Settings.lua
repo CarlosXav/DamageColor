@@ -93,6 +93,23 @@ hideTakenLabel:SetPoint("LEFT", hideTaken, "RIGHT", 6, 0)
 hideTakenLabel:SetText("Hide Blizzard damage taken")
 hideTaken:SetScript("OnClick", function(self) addon.SetHideBlizzardDamageTaken(self:GetChecked() == true) end)
 
+local visibilityChecks = {}
+for index, option in ipairs({
+    { key = "showDamageDealt", label = "Show DamageColor damage dealt", incoming = false },
+    { key = "showDamageTaken", label = "Show DamageColor damage taken", incoming = true },
+}) do
+    local check = CreateFrame("CheckButton", nil, panel, "ChatConfigCheckButtonTemplate")
+    check:SetSize(26, 26)
+    check:SetPoint("TOPLEFT", 16, -180 - (index - 1) * 40)
+    local label = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    label:SetPoint("LEFT", check, "RIGHT", 6, 0)
+    label:SetText(option.label)
+    check:SetScript("OnClick", function(self)
+        addon.SetDamageNumbersVisible(option.incoming, self:GetChecked() == true)
+    end)
+    visibilityChecks[option.key] = check
+end
+
 local takenPanel = pages["Damage Taken"]
 local takenNote = takenPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 takenNote:SetPoint("TOPLEFT", 16, -16)
@@ -259,6 +276,7 @@ fontPreviewLabel:SetText("Font preview")
 local refreshProfiles
 local function refresh()
     if refreshProfiles then refreshProfiles() end
+    for key, check in pairs(visibilityChecks) do check:SetChecked(addon[key]) end
     hideNative:SetChecked(addon.hideBlizzardDamage)
     hideTaken:SetChecked(addon.hideBlizzardDamageTaken)
     refreshingTaken = true
@@ -324,6 +342,7 @@ addon.OnAppearanceChanged = function()
     refresh()
     addon.RefreshTextAppearance()
 end
+addon.OnDamageVisibilityChanged = refresh
 addon.OnNativeDamageChanged = refresh
 addon.OnDamageTakenChanged = function()
     refresh()

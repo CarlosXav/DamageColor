@@ -214,6 +214,9 @@ local function handleDamage(unit, event, flags, amount, school)
     if event ~= "WOUND" and not outcome then return end
     if not outcome and (secret(school) or secret(amount)) then skipped("secret event data"); return end
     local incoming = unit == "player"
+    if (incoming and not addon.showDamageTaken) or (not incoming and not addon.showDamageDealt) then
+        skipped("damage numbers disabled"); return
+    end
     local record = tracked[unit]
     if record and record.attackable == false then return end
     if not incoming and unit ~= "target" and (not record or (not record.active and not record.draining)) then return end
@@ -430,6 +433,15 @@ function addon.RefreshTextAppearance()
             label.y = label.y + (label.baseSize - oldSize) * 0.75
             local ok, positioned = pcall(positionLabel, label)
             if not ok or not positioned then label.active = false; addon.HideDamageText(label.text) end
+        end
+    end
+end
+function addon.RefreshDamageVisibility()
+    for _, label in ipairs(labels) do
+        if label.active and ((label.incoming and not addon.showDamageTaken)
+            or (not label.incoming and not addon.showDamageDealt)) then
+            label.active = false
+            addon.HideDamageText(label.text)
         end
     end
 end
