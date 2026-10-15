@@ -97,6 +97,13 @@ then run `/dc watch` and save `/dc report` after it finishes. Repeat using Heroi
 Strike. The diagnostic does not read combat logs or collect damage amounts;
 secret metadata is replaced with `<secret>`.
 
+Run `/dc meter` once while dealing damage and again after leaving combat to
+inspect the read-only `C_DamageMeter` diagnostic. It prints availability, current
+session and local-player totals/DPS when readable, and up to five aggregated
+spell IDs/totals. Restricted values are shown as `<secret>`; names and GUIDs are
+never printed. Each command takes one snapshot, without resetting meter data,
+registering combat-log events, changing the overlay, or saving the results.
+
 To diagnose a missing killing blow, run `/dc watch`, kill one enemy, then run
 `/dc report`. The report includes the last 60 timestamped trace entries: raw
 target events, nameplate events, target-alias suppression, displayed hits,

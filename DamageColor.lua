@@ -457,6 +457,8 @@ SlashCmdList.DAMAGECOLOR = function(message)
     elseif command == "preview" then
         addon.ShowPreview()
         say("Synthetic palette preview for 10 seconds; physical includes auto-attacks.")
+    elseif command == "meter" then
+        addon.ProbeDamageMeter(say)
     elseif command == "on" then
         enabled = true
         addon.overlayEnabled = true
@@ -506,7 +508,7 @@ SlashCmdList.DAMAGECOLOR = function(message)
             for _, line in ipairs(traceLog) do say(line) end
         end
     else
-        say("/dc settings | /dc on | /dc off | /dc preview | /dc watch | /dc stop | /dc report")
+        say("/dc settings | /dc on | /dc off | /dc preview | /dc watch | /dc stop | /dc report | /dc meter")
         say("Overlay includes all attackers on visible enemy nameplates.")
     end
 end

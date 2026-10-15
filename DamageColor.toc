@@ -7,5 +7,6 @@
 Palette.lua
 TextEffects.lua
 NativeDamage.lua
+MeterProbe.lua
 DamageColor.lua
 Settings.lua
