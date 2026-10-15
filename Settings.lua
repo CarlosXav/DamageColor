@@ -54,7 +54,7 @@ local schools = {
     { 64, "Arcane" }, { 4, "Fire" }, { 32, "Shadow" },
     { 16, "Frost" }, { 8, "Nature" }, { 2, "Holy" },
     { 20, "Frostfire" },
-    { 0, "Other / mixed schools" },
+    { 0, "Other" },
 }
 local rows = {}
 local pickerSession

@@ -3,6 +3,13 @@
 A World of Warcraft: Forever addon that displays school-colored damage with
 impact pops above visible enemy nameplates.
 
+New numbers try nearby positions beside and above existing hits to avoid overlap,
+using the nearest available position and reserving room for settled text sizes
+and text edges. Brief pop animations may touch so bursts stay more compact.
+Placement uses a bounded search and picks the least crowded position if all
+candidates are occupied. When nameplate coordinates are restricted, avoidance
+works within each shared nameplate anchor; separate restricted plates may overlap.
+
 Target client: **1.60.1**, build **70374**, dated **October 12, 2026**.
 Addon interface: **16001**.
 
@@ -41,7 +48,7 @@ Enable DamageColor in the character-selection AddOns list, then log in or reload
 - `/dc report`: print the client build, counts, event types, flags, and school masks.
 
 Click a school's button to open the game color picker. Each of the seven schools
-has its own color, and Frostfire has a separate entry. Other / mixed schools
+has its own color, and Frostfire has a separate entry. Other
 controls the remaining fallback. Swatches, hex codes, previews, and active overlay numbers update as you
 pick. Cancel restores the color from before opening the picker. Reset colors
 restores the original palette. Choices are saved account-wide in `DamageColorDB`

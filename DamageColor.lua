@@ -89,6 +89,49 @@ local function unitPosition(unit)
     return nil, nil, plate
 end
 
+-- Reserve the settled size with a little breathing room. Brief peak pops may
+-- touch, keeping sustained bursts compact rather than spreading across the screen.
+-- Frame-relative labels can be compared without reading protected geometry.
+local function placeWithoutOverlap(label)
+    addon.ApplyFont(label.text, label.baseSize * 1.1)
+    local style = addon.GetTextStyle(label.school)
+    local padding = 4 + (style.mode == "none" and 0 or style.thickness * 4)
+    label.width = label.text:GetStringWidth() + padding
+    label.height = label.text:GetStringHeight() + padding
+    local originX, originY = label.x, label.y
+    local bestX, bestY, bestOverlap
+    local candidates = {}
+    for row = 0, 14 do
+        for _, lane in ipairs({ 0, -1, 1, -2, 2, -3, 3, -4, 4 }) do
+            local dx, dy = lane * label.width * 0.5, row * label.height * 0.5
+            candidates[#candidates + 1] = { x = originX + dx, y = originY + dy,
+                distance = dx * dx + dy * dy, order = #candidates + 1 }
+        end
+    end
+    table.sort(candidates, function(a, b)
+        if a.distance == b.distance then return a.order < b.order end
+        return a.distance < b.distance
+    end)
+    for _, candidate in ipairs(candidates) do
+            local x, y = candidate.x, candidate.y
+            local overlap = 0
+            for _, other in ipairs(labels) do
+                if other ~= label and other.active and other.anchor == label.anchor then
+                    local dx = math.abs(x - other.x)
+                    local dy = math.abs(y - (other.y + other.age * 12))
+                    local width = (label.width + other.width) / 2 - dx
+                    local height = (label.height + other.height) / 2 - dy
+                    if width > 0 and height > 0 then overlap = overlap + width * height end
+                end
+            end
+            if not bestOverlap or overlap < bestOverlap then
+                bestX, bestY, bestOverlap = x, y, overlap
+            end
+            if overlap == 0 then label.x, label.y = x, y; return end
+    end
+    label.x, label.y = bestX, bestY
+end
+
 local function positionLabel(label)
     label.text:ClearAllPoints()
     if label.anchor then
@@ -187,7 +230,10 @@ local function handleDamage(unit, event, flags, amount, school)
     label.y = (y or 0) + label.baseSize * 0.75 + ((sequence - 1) % 2) * 18
     label.text:SetText(tostring(amount))
     label.text:SetTextColor(addon.GetColor(school))
-    local ok, positioned = pcall(positionLabel, label)
+    local ok, positioned = pcall(function()
+        placeWithoutOverlap(label)
+        return positionLabel(label)
+    end)
     if not ok or not positioned then
         label.active = false
         addon.HideDamageText(label.text)

@@ -183,8 +183,34 @@ for _, frame in ipairs(frames) do if frame.text == "789" and frame.drawLayer == 
 assert(physical and physical.shown, "Physical hits must appear on the overlay")
 rgb(physical.color, 1, 0.20, 0.20)
 local originalX, originalY = physical.point[4], physical.point[5]
-assert(math.abs(originalX - 300) < 0.001 and math.abs(originalY - 286.5) < 0.001,
-    "Impact position must account for nameplate and UI scales")
+assert(originalY >= 286.5, "Impact position must stay above the scaled nameplate")
+local function separated(a, b, sizeA, sizeB)
+    local width = (#a.text * sizeA * 1.1 * 0.6 + #b.text * sizeB * 1.1 * 0.6) / 2
+    local height = (sizeA + sizeB) * 1.1 / 2
+    return math.abs(a.point[4] - b.point[4]) >= width
+        or math.abs(a.point[5] - b.point[5]) >= height
+end
+assert(separated(physical, liveNumber, 48, 48), "Consecutive hits must leave room for their settled size")
+assert(math.abs(physical.point[4] - liveNumber.point[4]) < 180
+    and math.abs(physical.point[5] - liveNumber.point[5]) < 120,
+    "Consecutive normal hits must stay close together")
+local burst = { physical, liveNumber }
+for i = 1, 6 do
+    local critical = i % 2 == 0
+    damageFrame.scripts.OnEvent(damageFrame, "UNIT_COMBAT", "target", "WOUND",
+        critical and "CRITICAL" or "", 8800 + i, 1)
+    local added
+    for _, frame in ipairs(frames) do
+        if frame.text == tostring(8800 + i) and frame.drawLayer == "OVERLAY" then added = frame end
+    end
+    assert(added and added.shown)
+    for _, previous in ipairs(burst) do
+        assert(separated(added, previous, critical and 96 or 48, previous.testSize or 48),
+            "Burst hits, including criticals, must avoid existing numbers")
+    end
+    added.testSize = critical and 96 or 48
+    burst[#burst + 1] = added
+end
 local live = physical.parent
 plate.x, plate.y = 800, 600 -- Old hits must not jump to a new target/nameplate position.
 live.scripts.OnUpdate(live, 0.08)
