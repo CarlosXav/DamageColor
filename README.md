@@ -90,6 +90,8 @@ Enable DamageColor in the character-selection AddOns list, then log in or reload
 - `/dc` or `/dc settings`: open the color suite, also available under Settings → AddOns → DamageColor.
 - `/dc preview`: show the intended palette using synthetic samples for 10 seconds.
 - `/dc on` / `/dc off`: enable or disable live overlay numbers for this session.
+- `/dc toggledealt` / `/dc toggletaken`: switch that direction between DamageColor and Blizzard by flipping custom visibility and matching Blizzard suppression. Choices persist and can be saved in profiles. Blizzard mode restores native outgoing settings or releases incoming suppression; native text must be enabled in the game settings.
+- `/dc toggle`: flip both directions independently, including when their current choices differ. Session-off and instance overrides still apply to all three toggle commands.
 - `/dc watch`: trace combat-event metadata and nameplate removal order for 20 seconds.
 - `/dc stop`: stop collecting early.
 - `/dc report`: print the client build, counts, event types, flags, and school masks.
@@ -270,3 +272,12 @@ untouched: calling them from addon code taints secret health/power arithmetic.
 Suppression stops when unchecked, on `/dc off`, or at logout. Late loading of
 Blizzard combat text is supported. Incoming hits with restricted amounts or schools are skipped, just
 like outgoing hits. Verify native suppression and placement in the target client.
+
+General options also provides **Disable damage dealt in instances (use Blizzard numbers)**
+and **Disable damage taken in instances (use Blizzard numbers)**. Both default off
+and are saved account-wide and in profiles. In dungeons, raids, and battlegrounds,
+each checked option hides DamageColor numbers for that direction and allows Blizzard
+numbers instead, independently of the normal visibility preferences. Outgoing
+Blizzard numbers are temporarily enabled; incoming Blizzard suppression is released.
+Leaving the instance reapplies normal preferences and restores the outgoing native
+setting. Restricted outgoing CVar writes retry after combat. Arenas are excluded.

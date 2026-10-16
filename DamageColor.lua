@@ -214,7 +214,7 @@ local function handleDamage(unit, event, flags, amount, school)
     if event ~= "WOUND" and not outcome then return end
     if not outcome and (secret(school) or secret(amount)) then skipped("secret event data"); return end
     local incoming = unit == "player"
-    if (incoming and not addon.showDamageTaken) or (not incoming and not addon.showDamageDealt) then
+    if not addon.AreDamageNumbersVisible(incoming) then
         skipped("damage numbers disabled"); return
     end
     local record = tracked[unit]
@@ -438,8 +438,7 @@ function addon.RefreshTextAppearance()
 end
 function addon.RefreshDamageVisibility()
     for _, label in ipairs(labels) do
-        if label.active and ((label.incoming and not addon.showDamageTaken)
-            or (not label.incoming and not addon.showDamageDealt)) then
+        if label.active and not addon.AreDamageNumbersVisible(label.incoming) then
             label.active = false
             addon.HideDamageText(label.text)
         end
@@ -492,6 +491,17 @@ end)
 
 SLASH_DAMAGECOLOR1 = "/damagecolor"
 SLASH_DAMAGECOLOR2 = "/dc"
+local function toggleDamageDirection(incoming)
+    local visible = not addon[incoming and "showDamageTaken" or "showDamageDealt"]
+    addon.SetDamageNumbersVisible(incoming, visible)
+    if incoming then
+        addon.SetHideBlizzardDamageTaken(visible)
+    else
+        addon.SetHideBlizzardDamage(visible)
+    end
+    say("Damage " .. (incoming and "taken" or "dealt") .. ": "
+        .. (visible and "DamageColor selected." or "Blizzard selected (native settings apply)."))
+end
 SlashCmdList.DAMAGECOLOR = function(message)
     local command = message:match("^%s*(%S*)"):lower()
     if command == "" or command == "config" or command == "settings" then
@@ -501,6 +511,13 @@ SlashCmdList.DAMAGECOLOR = function(message)
         say("Synthetic palette preview for 10 seconds; physical includes auto-attacks.")
     elseif command == "meter" then
         addon.ProbeDamageMeter(say)
+    elseif command == "toggledealt" then
+        toggleDamageDirection(false)
+    elseif command == "toggletaken" then
+        toggleDamageDirection(true)
+    elseif command == "toggle" then
+        toggleDamageDirection(false)
+        toggleDamageDirection(true)
     elseif command == "on" then
         enabled = true
         addon.overlayEnabled = true
@@ -553,7 +570,8 @@ SlashCmdList.DAMAGECOLOR = function(message)
             for _, line in ipairs(traceLog) do say(line) end
         end
     else
-        say("/dc settings | /dc on | /dc off | /dc preview | /dc watch | /dc stop | /dc report | /dc meter")
+        say("/dc settings | /dc on | /dc off | /dc toggledealt | /dc toggletaken | /dc toggle")
+        say("/dc preview | /dc watch | /dc stop | /dc report | /dc meter")
         say("Overlay includes all attackers on visible enemy nameplates.")
     end
 end

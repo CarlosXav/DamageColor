@@ -15,6 +15,8 @@ local function same(a, b)
 end
 local function snapshot()
     return copy({ colors = addon.colors, textStyles = addon.textStyles,
+        disableDamageDealtInInstances = addon.disableDamageDealtInInstances,
+        disableDamageTakenInInstances = addon.disableDamageTakenInInstances,
         showDamageDealt = addon.showDamageDealt, showDamageTaken = addon.showDamageTaken,
         appearance = addon.appearance, hideBlizzardDamage = addon.hideBlizzardDamage,
         damageTaken = addon.damageTaken, hideBlizzardDamageTaken = addon.hideBlizzardDamageTaken })
@@ -47,7 +49,7 @@ local function normalize(profile)
     if type(profile.hideBlizzardDamage) == "boolean" then result.hideBlizzardDamage = profile.hideBlizzardDamage end
     result.damageTaken = addon.NormalizeDamageTaken(profile.damageTaken, result.appearance.size)
     if type(profile.hideBlizzardDamageTaken) == "boolean" then result.hideBlizzardDamageTaken = profile.hideBlizzardDamageTaken end
-    for _, key in ipairs({ "showDamageDealt", "showDamageTaken" }) do
+    for _, key in ipairs({ "showDamageDealt", "showDamageTaken", "disableDamageDealtInInstances", "disableDamageTakenInInstances" }) do
         if type(profile[key]) == "boolean" then result[key] = profile[key] end
     end
     return result
@@ -93,6 +95,8 @@ function addon.LoadProfile(name)
     addon.SetAppearance(data.appearance.font, data.appearance.size)
     addon.SetDamageNumbersVisible(false, data.showDamageDealt)
     addon.SetDamageNumbersVisible(true, data.showDamageTaken)
+    addon.SetDisableDamageInInstances(false, data.disableDamageDealtInInstances)
+    addon.SetDisableDamageInInstances(true, data.disableDamageTakenInInstances)
     addon.SetDamageTaken(data.damageTaken.size, data.damageTaken.x, data.damageTaken.y)
     addon.SetHideBlizzardDamageTaken(data.hideBlizzardDamageTaken)
     addon.SetHideBlizzardDamage(data.hideBlizzardDamage)

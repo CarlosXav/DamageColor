@@ -24,6 +24,8 @@ addon.fonts = {
 addon.appearance = { font = "default", size = 48 }
 addon.showDamageDealt = true
 addon.showDamageTaken = true
+addon.disableDamageDealtInInstances = false
+addon.disableDamageTakenInInstances = false
 addon.hideBlizzardDamage = true
 addon.hideBlizzardDamageTaken = true
 addon.damageTaken = { size = 24, x = 0, y = -250 }
@@ -74,6 +76,35 @@ function addon.SetDamageNumbersVisible(incoming, visible)
     if addon.RefreshDamageVisibility then addon.RefreshDamageVisibility() end
     if addon.OnDamageVisibilityChanged then addon.OnDamageVisibilityChanged() end
 end
+-- Query current context directly so lifecycle-handler ordering cannot leave stale state.
+function addon.IsDamageDisabledInInstance(incoming)
+    local key = incoming and "disableDamageTakenInInstances" or "disableDamageDealtInInstances"
+    if not addon[key] or not IsInInstance then return false end
+    local inside, kind = IsInInstance()
+    return inside and (kind == "party" or kind == "raid" or kind == "pvp") or false
+end
+function addon.AreDamageNumbersVisible(incoming)
+    return addon[incoming and "showDamageTaken" or "showDamageDealt"]
+        and not addon.IsDamageDisabledInInstance(incoming)
+end
+function addon.SetDisableDamageInInstances(incoming, value)
+    if type(value) ~= "boolean" then return end
+    local key = incoming and "disableDamageTakenInInstances" or "disableDamageDealtInInstances"
+    addon[key] = value
+    if DamageColorDB then DamageColorDB[key] = value end
+    if addon.RefreshDamageVisibility then addon.RefreshDamageVisibility() end
+    addon.ApplyNativeDamageSetting()
+    addon.ApplyNativeDamageTakenSetting()
+    if addon.OnDamageVisibilityChanged then addon.OnDamageVisibilityChanged() end
+end
+local instanceEvents = CreateFrame("Frame")
+instanceEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
+instanceEvents:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+instanceEvents:SetScript("OnEvent", function()
+    if addon.RefreshDamageVisibility then addon.RefreshDamageVisibility() end
+    addon.ApplyNativeDamageSetting()
+    addon.ApplyNativeDamageTakenSetting()
+end)
 local function copy(color) return { color[1], color[2], color[3] } end
 local function valid(color)
     if type(color) ~= "table" then return false end
@@ -130,7 +161,7 @@ function addon.ResetColors()
 end
 
 function addon.GetDefaultProfile()
-    local profile = { showDamageDealt = true, showDamageTaken = true, colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
+    local profile = { disableDamageDealtInInstances = false, disableDamageTakenInInstances = false, showDamageDealt = true, showDamageTaken = true, colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
         damageTaken = { size = 24, x = 0, y = -250 } }
     for school, color in pairs(defaults) do
         profile.colors[school] = copy(color)
@@ -190,6 +221,10 @@ loader:SetScript("OnEvent", function(self, _, name)
     addon.hideBlizzardDamage = DamageColorDB.hideBlizzardDamage
     for _, key in ipairs({ "showDamageDealt", "showDamageTaken" }) do
         if type(DamageColorDB[key]) ~= "boolean" then DamageColorDB[key] = true end
+        addon[key] = DamageColorDB[key]
+    end
+    for _, key in ipairs({ "disableDamageDealtInInstances", "disableDamageTakenInInstances" }) do
+        if type(DamageColorDB[key]) ~= "boolean" then DamageColorDB[key] = false end
         addon[key] = DamageColorDB[key]
     end
     DamageColorDB.textHeightCap = nil -- Remove the retired screen-cap setting.

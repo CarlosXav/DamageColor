@@ -13,6 +13,7 @@ local suppress = false
 addon.nativeDamageTakenStatus = "not applied"
 function addon.ApplyNativeDamageTakenSetting(forceRestore)
     suppress = addon.hideBlizzardDamageTaken and addon.overlayEnabled and not forceRestore
+        and not addon.IsDamageDisabledInInstance(true)
     if not suppress then addon.nativeDamageTakenStatus = "native setting unchanged"; return end
     local frame = CombatText
     if not frame then addon.nativeDamageTakenStatus = "waiting for Blizzard combat text"; return end

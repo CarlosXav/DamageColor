@@ -915,6 +915,14 @@ assert(not nativeEvent("COMBAT_TEXT_UPDATE", "DAMAGE").shown)
 lifecycle("PLAYER_LOGOUT")
 assert(nativeEvent("COMBAT_TEXT_UPDATE", "DAMAGE").shown)
 assert(#secureHooks == 1 and #postScripts.OnEvent == 1, "Toggles must not stack hooks")
+local instanceKind = "party"
+IsInInstance = function() return true, instanceKind end
+addon.overlayEnabled = true
+addon.SetDisableDamageInInstances(true, true)
+assert(nativeEvent("COMBAT_TEXT_UPDATE", "DAMAGE").shown, "Instance incoming override must release suppression")
+addon.SetDisableDamageInInstances(true, false)
+assert(not nativeEvent("COMBAT_TEXT_UPDATE", "DAMAGE").shown)
+IsInInstance = nil
 CombatText = nil
 hooksecurefunc = nil
 print("PASS: incoming migration, profiles, placement, and native suppression without replacing Blizzard handlers")
@@ -1007,3 +1015,73 @@ assert(not addon.showDamageDealt and not addon.showDamageTaken)
 assert(addon.LoadProfile("Default"))
 assert(addon.showDamageDealt and addon.showDamageTaken)
 print("PASS: independent number visibility, active label clearing, persistence, and profiles")
+
+-- Instance overrides are independent, persistent, and restore the native baseline.
+local instanceKind
+IsInInstance = function() return instanceKind ~= nil, instanceKind end
+cvars = { floatingCombatTextCombatDamage_v2 = "0" }
+addon = loadAddon({ hideBlizzardDamage = false })
+assert(not addon.disableDamageDealtInInstances and not addon.disableDamageTakenInInstances)
+addon.SetDisableDamageInInstances(false, true)
+addon.SetDisableDamageInInstances(true, true)
+assert(addon.AreDamageNumbersVisible(false) and addon.AreDamageNumbersVisible(true))
+local function transition(kind)
+    instanceKind = kind
+    for _, frame in ipairs(frames) do
+        if frame.events.PLAYER_ENTERING_WORLD and frame.scripts.OnEvent then
+            frame.scripts.OnEvent(frame, "PLAYER_ENTERING_WORLD")
+        end
+    end
+end
+for _, kind in ipairs({ "party", "raid", "pvp" }) do
+    transition(kind)
+    assert(not addon.AreDamageNumbersVisible(false) and not addon.AreDamageNumbersVisible(true))
+    assert(cvars.floatingCombatTextCombatDamage_v2 == "1")
+    transition(nil)
+    assert(addon.AreDamageNumbersVisible(false) and addon.AreDamageNumbersVisible(true))
+    assert(cvars.floatingCombatTextCombatDamage_v2 == "0", "Restore originally disabled Blizzard numbers")
+end
+transition("arena")
+assert(addon.AreDamageNumbersVisible(false), "Only requested instance types use the override")
+transition("party")
+addon.SetDisableDamageInInstances(true, false)
+assert(not addon.AreDamageNumbersVisible(false) and addon.AreDamageNumbersVisible(true))
+assert(addon.SaveProfile("Instance options"))
+addon = loadAddon(DamageColorDB)
+assert(addon.disableDamageDealtInInstances and not addon.disableDamageTakenInInstances)
+addon.SetDisableDamageInInstances(false, false)
+assert(addon.ProfileIsDirty())
+assert(addon.LoadProfile("Instance options") and addon.disableDamageDealtInInstances)
+assert(addon.LoadProfile("Default"))
+assert(not addon.disableDamageDealtInInstances and not addon.disableDamageTakenInInstances)
+IsInInstance = nil
+print("PASS: instance direction overrides, transitions, native baseline restoration, persistence, and profiles")
+
+-- Slash toggles pair custom visibility with suppression, independently per direction.
+cvars = { floatingCombatTextCombatDamage_v2 = "1" }
+addon = loadAddon({})
+SlashCmdList.DAMAGECOLOR("toggledealt")
+assert(not addon.showDamageDealt and not addon.hideBlizzardDamage)
+assert(addon.showDamageTaken and addon.hideBlizzardDamageTaken)
+assert(cvars.floatingCombatTextCombatDamage_v2 == "1")
+SlashCmdList.DAMAGECOLOR("toggle")
+assert(addon.showDamageDealt and addon.hideBlizzardDamage)
+assert(not addon.showDamageTaken and not addon.hideBlizzardDamageTaken)
+assert(cvars.floatingCombatTextCombatDamage_v2 == "0")
+SlashCmdList.DAMAGECOLOR("toggletaken")
+assert(addon.showDamageTaken and addon.hideBlizzardDamageTaken)
+SlashCmdList.DAMAGECOLOR("toggle")
+assert(not addon.showDamageDealt and not addon.showDamageTaken)
+assert(not addon.hideBlizzardDamage and not addon.hideBlizzardDamageTaken)
+assert(addon.SaveProfile("Slash toggles"))
+addon = loadAddon(DamageColorDB)
+assert(not addon.showDamageDealt and not addon.showDamageTaken)
+assert(not addon.hideBlizzardDamage and not addon.hideBlizzardDamageTaken)
+SlashCmdList.DAMAGECOLOR("off")
+SlashCmdList.DAMAGECOLOR("toggle")
+assert(not addon.overlayEnabled and addon.showDamageDealt and addon.showDamageTaken)
+assert(cvars.floatingCombatTextCombatDamage_v2 == "1")
+assert(addon.ProfileIsDirty())
+assert(addon.LoadProfile("Slash toggles"))
+assert(not addon.showDamageDealt and not addon.showDamageTaken)
+print("PASS: slash direction toggles, mixed states, native restoration, session-off, persistence, and profiles")

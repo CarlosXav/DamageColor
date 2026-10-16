@@ -24,8 +24,9 @@ function addon.ApplyNativeDamageSetting(forceRestore)
         previous = nil
         DamageColorDB.nativeDamageRestore = nil
     end
+    local instanceNative = addon.overlayEnabled and not forceRestore and addon.IsDamageDisabledInInstance(false)
     local hiding = addon.hideBlizzardDamage and addon.overlayEnabled and not forceRestore
-    if hiding then
+    if hiding or instanceNative then
         local name = previous and previous.name or "floatingCombatTextCombatDamage_v2"
         local value = get(name)
         if not value and not previous then
@@ -37,12 +38,15 @@ function addon.ApplyNativeDamageSetting(forceRestore)
             previous = { name = name, value = value }
             DamageColorDB.nativeDamageRestore = previous
         end
-        local hidden = value == "0" or set(name, "0")
-        addon.nativeDamageStatus = hidden and "hidden" or "hide pending (will retry after combat)"
+        local desired = instanceNative and "1" or "0"
+        local applied = value == desired or set(name, desired)
+        if applied then previous.instanceEnabled = instanceNative or nil end
+        addon.nativeDamageStatus = applied and (instanceNative and "enabled in instance" or "hidden")
+            or "change pending (will retry after combat)"
     elseif previous then
         -- Preserve an external change that already re-enabled native damage.
         local current = get(previous.name)
-        if current == "1" or (current and (current == previous.value or set(previous.name, previous.value))) then
+        if (current == "1" and not previous.instanceEnabled) or (current and (current == previous.value or set(previous.name, previous.value))) then
             DamageColorDB.nativeDamageRestore = nil
             addon.nativeDamageStatus = "previous setting restored"
         else

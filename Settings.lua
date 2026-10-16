@@ -97,6 +97,8 @@ local visibilityChecks = {}
 for index, option in ipairs({
     { key = "showDamageDealt", label = "Show DamageColor damage dealt", incoming = false },
     { key = "showDamageTaken", label = "Show DamageColor damage taken", incoming = true },
+    { key = "disableDamageDealtInInstances", label = "Disable damage dealt in instances (use Blizzard numbers)", incoming = false, instance = true },
+    { key = "disableDamageTakenInInstances", label = "Disable damage taken in instances (use Blizzard numbers)", incoming = true, instance = true },
 }) do
     local check = CreateFrame("CheckButton", nil, panel, "ChatConfigCheckButtonTemplate")
     check:SetSize(26, 26)
@@ -105,7 +107,11 @@ for index, option in ipairs({
     label:SetPoint("LEFT", check, "RIGHT", 6, 0)
     label:SetText(option.label)
     check:SetScript("OnClick", function(self)
-        addon.SetDamageNumbersVisible(option.incoming, self:GetChecked() == true)
+        if option.instance then
+            addon.SetDisableDamageInInstances(option.incoming, self:GetChecked() == true)
+        else
+            addon.SetDamageNumbersVisible(option.incoming, self:GetChecked() == true)
+        end
     end)
     visibilityChecks[option.key] = check
 end
