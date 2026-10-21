@@ -6,7 +6,7 @@ local scroll = CreateFrame("ScrollFrame", nil, canvas, "UIPanelScrollFrameTempla
 scroll:SetPoint("TOPLEFT", 0, 0)
 scroll:SetPoint("BOTTOMRIGHT", -28, 0)
 local panel = CreateFrame("Frame", nil, scroll)
-panel:SetSize(560, 300)
+panel:SetSize(560, 850)
 scroll:SetScrollChild(panel)
 local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 title:SetPoint("TOPLEFT", 16, -16)
@@ -15,10 +15,34 @@ local description = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 description:SetPoint("TOPLEFT", 16, -48)
 description:SetWidth(520)
 description:SetJustifyH("LEFT")
-description:SetText("Choose Font, Style, Damage Taken, or Profiles from the DamageColor submenus to customize your numbers.")
+description:SetText("DamageColor displays customizable damage dealt above enemy nameplates and damage taken near your character, with school colors, fonts, outlines, and glows. Choose a submenu to adjust your settings.\n\nDamage dealt includes other players' hits on visible enemies. The client does not provide a reliable way to show only your own damage.")
+local instanceNote = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+instanceNote:SetPoint("TOPLEFT", description, "BOTTOMLEFT", 0, -20)
+instanceNote:SetWidth(520)
+instanceNote:SetJustifyH("LEFT")
+local commandsTitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+commandsTitle:SetPoint("TOPLEFT", instanceNote, "BOTTOMLEFT", 0, -28)
+commandsTitle:SetText("Commands")
+local commands = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+commands:SetPoint("TOPLEFT", commandsTitle, "BOTTOMLEFT", 0, -16)
+commands:SetWidth(520)
+commands:SetJustifyH("LEFT")
+commands:SetText(table.concat({
+    "/dc, /dc settings, /dc config - Open settings.",
+    "/dc preview - Show synthetic palette samples for 10 seconds.",
+    "/dc on - Enable the overlay for this session, respecting General options.",
+    "/dc off - Disable the overlay and release Blizzard text suppression for this session.",
+    "/dc toggledealt - Switch damage dealt between DamageColor and Blizzard.",
+    "/dc toggletaken - Switch damage taken between DamageColor and Blizzard.",
+    "/dc toggle - Flip each direction's selection independently. Toggle choices are saved; session and instance overrides still apply. Blizzard text requires native text enabled in game settings.",
+    "/dc watch - Trace combat events and nameplate removal for 20 seconds.",
+    "/dc stop - Stop tracing early.",
+    "/dc report - Print client details, display counters, and recent traces.",
+    "/dc meter - Print a read-only damage-meter snapshot; totals may only be readable after combat.",
+}, "\n\n"))
 
 local pages, pageCanvases = {}, {}
-for _, name in ipairs({ "Font", "Style", "Damage Taken", "Profiles" }) do
+for _, name in ipairs({ "General", "Font", "Style", "Damage Taken", "Profiles" }) do
     local pageCanvas = CreateFrame("Frame", nil, UIParent)
     pageCanvas:Hide()
     local pageScroll = CreateFrame("ScrollFrame", nil, pageCanvas, "UIPanelScrollFrameTemplate")
@@ -34,6 +58,7 @@ for _, name in ipairs({ "Font", "Style", "Damage Taken", "Profiles" }) do
     pages[name], pageCanvases[name] = page, pageCanvas
 end
 local general, stylePanel, profilesPanel = pages.Font, pages.Style, pages.Profiles
+local optionsPanel = pages.General
 
 local function addSliderArrows(slider, minimum, maximum)
     for _, direction in ipairs({ -1, 1 }) do
@@ -77,18 +102,18 @@ addSliderArrows(sizeSlider, 12, 96)
 sizeSlider:SetScript("OnValueChanged", function(_, value)
     addon.SetAppearance(addon.appearance.font, value)
 end)
-local hideNative = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+local hideNative = CreateFrame("CheckButton", nil, optionsPanel, "UICheckButtonTemplate")
 hideNative:SetSize(26, 26)
-hideNative:SetPoint("TOPLEFT", 16, -100)
-local hideLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+hideNative:SetPoint("TOPLEFT", 16, -20)
+local hideLabel = optionsPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 hideLabel:SetPoint("LEFT", hideNative, "RIGHT", 6, 0)
 hideLabel:SetText("Hide Blizzard damage")
 hideNative:SetScript("OnClick", function(self) addon.SetHideBlizzardDamage(self:GetChecked() == true) end)
 
-local hideTaken = CreateFrame("CheckButton", nil, panel, "ChatConfigCheckButtonTemplate")
+local hideTaken = CreateFrame("CheckButton", nil, optionsPanel, "ChatConfigCheckButtonTemplate")
 hideTaken:SetSize(26, 26)
-hideTaken:SetPoint("TOPLEFT", 16, -140)
-local hideTakenLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+hideTaken:SetPoint("TOPLEFT", 16, -60)
+local hideTakenLabel = optionsPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 hideTakenLabel:SetPoint("LEFT", hideTaken, "RIGHT", 6, 0)
 hideTakenLabel:SetText("Hide Blizzard damage taken")
 hideTaken:SetScript("OnClick", function(self) addon.SetHideBlizzardDamageTaken(self:GetChecked() == true) end)
@@ -100,10 +125,10 @@ for index, option in ipairs({
     { key = "disableDamageDealtInInstances", label = "Disable damage dealt in instances (use Blizzard numbers)", incoming = false, instance = true },
     { key = "disableDamageTakenInInstances", label = "Disable damage taken in instances (use Blizzard numbers)", incoming = true, instance = true },
 }) do
-    local check = CreateFrame("CheckButton", nil, panel, "ChatConfigCheckButtonTemplate")
+    local check = CreateFrame("CheckButton", nil, optionsPanel, "ChatConfigCheckButtonTemplate")
     check:SetSize(26, 26)
-    check:SetPoint("TOPLEFT", 16, -180 - (index - 1) * 40)
-    local label = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    check:SetPoint("TOPLEFT", 16, -100 - (index - 1) * 40)
+    local label = optionsPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     label:SetPoint("LEFT", check, "RIGHT", 6, 0)
     label:SetText(option.label)
     check:SetScript("OnClick", function(self)
@@ -281,6 +306,10 @@ fontPreviewLabel:SetPoint("TOPLEFT", 380, -8)
 fontPreviewLabel:SetText("Font preview")
 local refreshProfiles
 local function refresh()
+    instanceNote:SetText("Automatic instance disabling (General): damage dealt "
+        .. (addon.disableDamageDealtInInstances and "ON" or "OFF") .. "; damage taken "
+        .. (addon.disableDamageTakenInInstances and "ON" or "OFF")
+        .. ". When enabled, DamageColor automatically switches that direction to Blizzard numbers in dungeons, raids, and battlegrounds, then resumes on exit. Arenas are excluded. Native text must be enabled in game settings.")
     if refreshProfiles then refreshProfiles() end
     for key, check in pairs(visibilityChecks) do check:SetChecked(addon[key]) end
     hideNative:SetChecked(addon.hideBlizzardDamage)
@@ -497,7 +526,7 @@ note:SetText("Choose a number type to customize its text and edge together. Soft
 
 local category = Settings.RegisterCanvasLayoutCategory(canvas, "DamageColor")
 Settings.RegisterAddOnCategory(category)
-for _, name in ipairs({ "Font", "Style", "Damage Taken", "Profiles" }) do
+for _, name in ipairs({ "General", "Font", "Style", "Damage Taken", "Profiles" }) do
     local pageCanvas = pageCanvases[name]
     Settings.RegisterCanvasLayoutSubcategory(category, pageCanvas, name)
     pageCanvas:SetScript("OnShow", refresh)

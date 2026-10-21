@@ -744,7 +744,7 @@ rgb(DamageColorDB.profiles["Power Glow (Lightning)"].colors[8], 0.1, 0.2, 0.3)
 assert(not addon.ProfileIsDirty(), "Lightning preset edits must survive reloads without being overwritten")
 -- Settings submenu navigation and previews must not mutate the active style.
 addon = loadAddon({})
-assert(submenus.Font and submenus.Style and submenus.Profiles and not submenus.General)
+assert(submenus.Font and submenus.Style and submenus.Profiles and submenus.General)
 for _, frame in ipairs(frames) do
     assert(not (frame.scripts.OnClick and (frame.text == "General" or frame.text == "Style" or frame.text == "Profiles")),
         "Navigation must use Settings submenus rather than buttons")
@@ -759,7 +759,7 @@ local hideOption
 for _, frame in ipairs(frames) do
     if frame.template == "UICheckButtonTemplate" then hideOption = frame end
 end
-assert(hideOption and hideOption.parent ~= generalPage, "Native-damage checkbox belongs on the root screen")
+assert(hideOption and hideOption.parent.parent.parent == submenus.General, "Native-damage checkbox belongs on General")
 submenus.Style:Show()
 editTextColor(2)
 local cancelledAfterTab = ColorPickerFrame.info.cancelFunc
