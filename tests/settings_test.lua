@@ -1016,12 +1016,30 @@ assert(addon.LoadProfile("Default"))
 assert(addon.showDamageDealt and addon.showDamageTaken)
 print("PASS: independent number visibility, active label clearing, persistence, and profiles")
 
+-- Default outgoing instance protection applies to missing/invalid settings and profiles.
+for _, saved in ipairs({ {}, { disableDamageDealtInInstances = "invalid" } }) do
+    addon = loadAddon(saved)
+    assert(addon.disableDamageDealtInInstances and not addon.disableDamageTakenInInstances)
+    assert(DamageColorDB.disableDamageDealtInInstances == true)
+    for _, name in ipairs(addon.GetProfileNames()) do
+        assert(addon.LoadProfile(name))
+        assert(addon.disableDamageDealtInInstances and not addon.disableDamageTakenInInstances)
+    end
+end
+addon = loadAddon({ disableDamageDealtInInstances = false })
+assert(not addon.disableDamageDealtInInstances, "Preserve an explicit saved opt-out")
+assert(addon.SaveProfile("Instances enabled"))
+addon = loadAddon(DamageColorDB)
+assert(not addon.disableDamageDealtInInstances)
+assert(addon.LoadProfile("Default") and addon.disableDamageDealtInInstances)
+assert(addon.LoadProfile("Instances enabled") and not addon.disableDamageDealtInInstances)
+
 -- Instance overrides are independent, persistent, and restore the native baseline.
 local instanceKind
 IsInInstance = function() return instanceKind ~= nil, instanceKind end
 cvars = { floatingCombatTextCombatDamage_v2 = "0" }
 addon = loadAddon({ hideBlizzardDamage = false })
-assert(not addon.disableDamageDealtInInstances and not addon.disableDamageTakenInInstances)
+assert(addon.disableDamageDealtInInstances and not addon.disableDamageTakenInInstances)
 addon.SetDisableDamageInInstances(false, true)
 addon.SetDisableDamageInInstances(true, true)
 assert(addon.AreDamageNumbersVisible(false) and addon.AreDamageNumbersVisible(true))
@@ -1053,7 +1071,7 @@ addon.SetDisableDamageInInstances(false, false)
 assert(addon.ProfileIsDirty())
 assert(addon.LoadProfile("Instance options") and addon.disableDamageDealtInInstances)
 assert(addon.LoadProfile("Default"))
-assert(not addon.disableDamageDealtInInstances and not addon.disableDamageTakenInInstances)
+assert(addon.disableDamageDealtInInstances and not addon.disableDamageTakenInInstances)
 IsInInstance = nil
 print("PASS: instance direction overrides, transitions, native baseline restoration, persistence, and profiles")
 

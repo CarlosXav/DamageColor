@@ -24,7 +24,7 @@ addon.fonts = {
 addon.appearance = { font = "default", size = 48 }
 addon.showDamageDealt = true
 addon.showDamageTaken = true
-addon.disableDamageDealtInInstances = false
+addon.disableDamageDealtInInstances = true
 addon.disableDamageTakenInInstances = false
 addon.hideBlizzardDamage = true
 addon.hideBlizzardDamageTaken = true
@@ -161,7 +161,7 @@ function addon.ResetColors()
 end
 
 function addon.GetDefaultProfile()
-    local profile = { disableDamageDealtInInstances = false, disableDamageTakenInInstances = false, showDamageDealt = true, showDamageTaken = true, colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
+    local profile = { disableDamageDealtInInstances = true, disableDamageTakenInInstances = false, showDamageDealt = true, showDamageTaken = true, colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
         damageTaken = { size = 24, x = 0, y = -250 } }
     for school, color in pairs(defaults) do
         profile.colors[school] = copy(color)
@@ -224,7 +224,7 @@ loader:SetScript("OnEvent", function(self, _, name)
         addon[key] = DamageColorDB[key]
     end
     for _, key in ipairs({ "disableDamageDealtInInstances", "disableDamageTakenInInstances" }) do
-        if type(DamageColorDB[key]) ~= "boolean" then DamageColorDB[key] = false end
+        if type(DamageColorDB[key]) ~= "boolean" then DamageColorDB[key] = key == "disableDamageDealtInInstances" end
         addon[key] = DamageColorDB[key]
     end
     DamageColorDB.textHeightCap = nil -- Remove the retired screen-cap setting.

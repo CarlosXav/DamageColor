@@ -2,7 +2,7 @@
 ## Title: DamageColor
 ## IconTexture: Interface\AddOns\DamageColor\assets\damagecolor-icon.tga
 ## Notes: School-colored damage with impact pops above visible enemy nameplates.
-## Version: 1.0.0
+## Version: 1.0.1
 ## SavedVariables: DamageColorDB
 
 Palette.lua

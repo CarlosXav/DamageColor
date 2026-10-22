@@ -88,8 +88,9 @@ them to a named profile.
 In **General**, enable **Disable damage dealt in instances** and/or **Disable
 damage taken in instances** to automatically use Blizzard numbers in dungeons,
 raids, and battlegrounds. Each direction is independent, and your usual
-DamageColor settings return when you leave. Arenas are excluded. These options
-are off by default.
+DamageColor settings return when you leave. Arenas are excluded. Automatic
+switching is on by default for damage dealt
+and off for damage taken. Existing saved choices are preserved.
 
 Blizzard text must be enabled in the game's settings for it to appear when
 switching back. Some changes may wait until combat ends.

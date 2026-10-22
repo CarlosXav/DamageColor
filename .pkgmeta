@@ -1,0 +1,9 @@
+package-as: DamageColor
+enable-nolib-creation: no
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - tests
+  - AGENTS.md
