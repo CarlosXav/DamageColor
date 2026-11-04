@@ -27,7 +27,7 @@ to Blizzard numbers in instances using the options in **General**.
 3. Enter the game and enable enemy nameplates (normally **V**).
 4. Type `/dc` to open settings.
 
-Designed for the Forever client **1.60.1** (build **70374**).
+Designed for the Forever client **1.60.1** (build **70790**).
 
 ## Make it yours
 
