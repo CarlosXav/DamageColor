@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+- Restore damage numbers on Forever build 70790 when the client restricts damage
+  amounts, including support for colored outlines and glows.
+- Use the Other style when a damage school is unavailable.
+
 ## 1.1.0
 
 - Update the documented Forever client target to 1.60.1 (build 70790).

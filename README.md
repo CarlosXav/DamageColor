@@ -66,7 +66,7 @@ Auto-attacks, physical abilities, and bleeds share the Physical style.
 
 Choose **None**, **Outline**, or **Soft glow** for each type, with a separate
 edge color and thickness. Frostfire has its own style; changing Fire or Frost
-will not change it. Unrecognized damage types use **Other**.
+will not change it. Unrecognized or unavailable damage types use **Other**.
 
 ### Profiles
 

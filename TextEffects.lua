@@ -25,9 +25,20 @@ function addon.UpdateTextEffect(text, school, size, alpha, previewStyle, preview
         effects[text] = effect
     end
     local r, g, b = unpack(style.color)
-    local value = text:GetText() or ""
-    local signature = table.concat({ fontPath, size, style.mode, style.thickness, r, g, b, value }, "|")
-    local changed = effect.signature ~= signature
+    local ok, value = pcall(text.GetText, text)
+    if not ok then
+        for _, layer in ipairs(effect.layers) do layer:Hide() end
+        return
+    end
+    local restricted = issecretvalue and issecretvalue(value)
+    if not restricted then value = value or "" end
+    -- Never concatenate or compare secret text. Refresh those layers directly;
+    -- the engine propagates the opaque text without exposing it to addon Lua.
+    local signature
+    if not restricted then
+        signature = table.concat({ fontPath, size, style.mode, style.thickness, r, g, b, value }, "|")
+    end
+    local changed = restricted or effect.signature ~= signature
     effect.signature = signature
     for i = 1, math.max(count, #effect.layers) do
         local layer = effect.layers[i]
@@ -42,7 +53,11 @@ function addon.UpdateTextEffect(text, school, size, alpha, previewStyle, preview
                 local direction = directions[(i - 1) % 8 + 1]
                 local radius = style.thickness * (style.mode == "glow" and ring * 0.65 or 1)
                 if layer:SetFont(fontPath, size, "") == false then layer:SetFont(STANDARD_TEXT_FONT, size, "") end
-                layer:SetText(value)
+                local textOK = pcall(layer.SetText, layer, value)
+                if not textOK then
+                    for _, existing in ipairs(effect.layers) do existing:Hide() end
+                    return
+                end
                 layer:SetTextColor(r, g, b)
                 layer:ClearAllPoints()
                 layer:SetPoint("CENTER", text, "CENTER", direction[1] * radius, direction[2] * radius)

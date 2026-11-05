@@ -212,7 +212,6 @@ local function handleDamage(unit, event, flags, amount, school)
     if secret(unit) or secret(event) then skipped("secret event data"); return end
     local outcome = outcomes[event]
     if event ~= "WOUND" and not outcome then return end
-    if not outcome and (secret(school) or secret(amount)) then skipped("secret event data"); return end
     local incoming = unit == "player"
     if not addon.AreDamageNumbersVisible(incoming) then
         skipped("damage numbers disabled"); return
@@ -236,8 +235,9 @@ local function handleDamage(unit, event, flags, amount, school)
     if outcome then
         school = -1
     else
+        if secret(school) then school = 0 end
         if type(school) ~= "number" or school < 0 then return end
-        if type(amount) ~= "number" or amount <= 0 then return end
+        if not secret(amount) and (type(amount) ~= "number" or amount <= 0) then return end
     end
     local x, y, anchor, reason
     if incoming then x, y = 0, 0 else x, y, anchor, reason = unitPosition(unit) end
@@ -253,8 +253,18 @@ local function handleDamage(unit, event, flags, amount, school)
     label.retired = record and record.draining or false
     label.x = (x or 0) + ((sequence - 1) % 3 - 1) * 36
     label.y = (y or 0) + label.baseSize * 0.75 + ((sequence - 1) % 2) * 18
-    label.displayText = outcome or tostring(amount)
-    label.text:SetText(label.displayText)
+    -- Secret amounts may be passed directly to the display API, never converted,
+    -- compared, or measured in Lua. Use a known five-digit placement estimate.
+    label.displayText = outcome or (secret(amount) and "00000" or tostring(amount))
+    local textValue = label.displayText
+    if not outcome and secret(amount) then textValue = amount end
+    local textOK = pcall(label.text.SetText, label.text, textValue)
+    if not textOK then
+        label.active = false
+        addon.HideDamageText(label.text)
+        skipped("client rejected damage text")
+        return
+    end
     label.text:SetTextColor(addon.GetColor(school))
     local ok, positioned = pcall(function()
         placeWithoutOverlap(label)

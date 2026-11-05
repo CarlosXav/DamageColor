@@ -721,6 +721,36 @@ assert(addon.LoadProfile("Outcomes") and addon.GetTextStyle(-1).mode == "glow")
 rgb(addon.colors[-1], 0.6, 0.7, 0.8)
 miss.parent.scripts.OnUpdate(miss.parent, 1.8)
 assert(outcomeWord("Miss") == 0 and outcomeWord("Resisted") == 0, "Outcome messages must expire")
+-- A secret amount must reach the engine unchanged, including its glow copies.
+setmetatable(inaccessible, { __tostring = function() error("Secret amount converted") end })
+addon.SetTextStyle(2, "glow", 2, 1, 1, 1)
+outcomeListener.scripts.OnEvent(outcomeListener, "UNIT_COMBAT", "target", "WOUND", inaccessible, inaccessible, 2)
+local opaqueCount, opaqueText = outcomeWord(inaccessible)
+assert(opaqueCount == 1, "Secret amounts must reach SetText unchanged")
+rgb(opaqueText.color, unpack(addon.colors[2]))
+assert(math.abs(opaqueText.fontSize - 48 * 0.85) < 0.001, "Secret flags must use normal size")
+local opaqueEdges = 0
+for _, frame in ipairs(frames) do
+    if frame.drawLayer == "ARTWORK" and frame.text == inaccessible and frame.shown then
+        opaqueEdges = opaqueEdges + 1
+    end
+end
+assert(opaqueEdges == 24, "Glow must propagate opaque text without signature concatenation")
+opaqueText.parent.scripts.OnUpdate(opaqueText.parent, 0.1)
+outcomeListener.scripts.OnEvent(outcomeListener, "UNIT_COMBAT", "target", "WOUND", "", 12345, inaccessible)
+local _, unknownSchool = outcomeWord("12345")
+assert(unknownSchool, "Secret school must use Other")
+rgb(unknownSchool.color, unpack(addon.colors[0]))
+local originalSetText = methods.SetText
+methods.SetText = function(self, value)
+    if value == inaccessible then error("Client rejects secret text") end
+    return originalSetText(self, value)
+end
+outcomeListener.scripts.OnEvent(outcomeListener, "UNIT_COMBAT", "target", "WOUND", "", inaccessible, 2)
+methods.SetText = originalSetText
+opaqueText.parent.scripts.OnUpdate(opaqueText.parent, 1.8)
+assert(outcomeWord(inaccessible) == 0, "Opaque labels must expire or hide on rejected writes")
+
 issecretvalue = nil
 addon = loadAddon({})
 assert(DamageColorDB.profiles["Power Glow (Lightning)"], "Lightning preset must be seeded on fresh installs")
