@@ -18,6 +18,8 @@ to Blizzard numbers in instances using the options in **General**.
 - Live previews and saved profiles to compare and switch between looks.
 - Separate controls for DamageColor and Blizzard damage numbers.
 
+Choose **All damage** (default) or **Target only** beneath **Show DamageColor damage dealt** in General. The dropdown is disabled when damage dealt is unchecked. Target only shows new hits on your current target, including other players' hits. This choice is saved in profiles.
+
 ## Installation
 
 1. Place the `DamageColor` folder inside your Forever installation's
@@ -36,7 +38,7 @@ the sidebar to find:
 
 | Menu | What you can change |
 | --- | --- |
-| **General** | Show or hide damage dealt and taken, control Blizzard numbers, and choose when to switch automatically in instances. |
+| **General** | Choose All damage or Target only for damage dealt, show or hide damage dealt and taken, control Blizzard numbers, and choose when to switch automatically in instances. |
 | **Font** | Choose a font and adjust outgoing text size. |
 | **Style** | Pick a damage type, then customize its text color, outline, or glow. |
 | **Damage Taken** | Adjust incoming text size and position, and preview the placement. |

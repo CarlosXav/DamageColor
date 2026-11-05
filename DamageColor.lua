@@ -219,6 +219,11 @@ local function handleDamage(unit, event, flags, amount, school)
     local record = tracked[unit]
     if record and record.attackable == false then return end
     if not incoming and unit ~= "target" and (not record or (not record.active and not record.draining)) then return end
+    if not incoming and addon.damageDealtScope == "target" and unit ~= "target" then
+        -- Compare accessible nameplate frames, without reading unit identities.
+        local ok, targetPlate = pcall(C_NamePlate.GetNamePlateForUnit, "target")
+        if not ok or not targetPlate or not record or record.plate ~= targetPlate then return end
+    end
     if unit == "target" and C_NamePlate then
         -- A target alias and its nameplate token can report the same hit.
         -- Prefer the nameplate subscription; never deduplicate by hit amount.
@@ -533,7 +538,7 @@ SlashCmdList.DAMAGECOLOR = function(message)
         addon.overlayEnabled = true
         addon.ApplyNativeDamageTakenSetting()
         addon.ApplyNativeDamageSetting()
-        say("Damage overlay enabled (all attackers on visible enemy nameplates).")
+        say("Damage overlay enabled (all attackers; " .. (addon.damageDealtScope == "target" and "target only" or "all visible enemy nameplates") .. ").")
     elseif command == "off" then
         enabled = false
         addon.overlayEnabled = false
@@ -582,6 +587,6 @@ SlashCmdList.DAMAGECOLOR = function(message)
     else
         say("/dc settings | /dc on | /dc off | /dc toggledealt | /dc toggletaken | /dc toggle")
         say("/dc preview | /dc watch | /dc stop | /dc report | /dc meter")
-        say("Overlay includes all attackers on visible enemy nameplates.")
+        say("Overlay includes all attackers; outgoing scope: " .. (addon.damageDealtScope == "target" and "target only." or "all visible enemy nameplates."))
     end
 end

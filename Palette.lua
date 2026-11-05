@@ -22,6 +22,7 @@ addon.fonts = {
     { key = "skurri", name = "Skurri", path = "Fonts\\skurri.ttf" },
 }
 addon.appearance = { font = "default", size = 48 }
+addon.damageDealtScope = "all"
 addon.showDamageDealt = true
 addon.showDamageTaken = true
 addon.disableDamageDealtInInstances = true
@@ -74,6 +75,12 @@ function addon.SetDamageNumbersVisible(incoming, visible)
     addon[key] = visible
     if DamageColorDB then DamageColorDB[key] = visible end
     if addon.RefreshDamageVisibility then addon.RefreshDamageVisibility() end
+    if addon.OnDamageVisibilityChanged then addon.OnDamageVisibilityChanged() end
+end
+function addon.SetDamageDealtScope(scope)
+    if scope ~= "all" and scope ~= "target" then return end
+    addon.damageDealtScope = scope
+    if DamageColorDB then DamageColorDB.damageDealtScope = scope end
     if addon.OnDamageVisibilityChanged then addon.OnDamageVisibilityChanged() end
 end
 -- Query current context directly so lifecycle-handler ordering cannot leave stale state.
@@ -161,7 +168,7 @@ function addon.ResetColors()
 end
 
 function addon.GetDefaultProfile()
-    local profile = { disableDamageDealtInInstances = true, disableDamageTakenInInstances = false, showDamageDealt = true, showDamageTaken = true, colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
+    local profile = { damageDealtScope = "all", disableDamageDealtInInstances = true, disableDamageTakenInInstances = false, showDamageDealt = true, showDamageTaken = true, colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
         damageTaken = { size = 24, x = 0, y = -250 } }
     for school, color in pairs(defaults) do
         profile.colors[school] = copy(color)
@@ -227,6 +234,7 @@ loader:SetScript("OnEvent", function(self, _, name)
         if type(DamageColorDB[key]) ~= "boolean" then DamageColorDB[key] = key == "disableDamageDealtInInstances" end
         addon[key] = DamageColorDB[key]
     end
+    addon.SetDamageDealtScope(DamageColorDB.damageDealtScope == "target" and "target" or "all")
     DamageColorDB.textHeightCap = nil -- Remove the retired screen-cap setting.
     local taken = addon.NormalizeDamageTaken(DamageColorDB.damageTaken, addon.appearance.size)
     addon.SetDamageTaken(taken.size, taken.x, taken.y)

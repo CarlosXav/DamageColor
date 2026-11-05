@@ -14,7 +14,7 @@ local function same(a, b)
     return true
 end
 local function snapshot()
-    return copy({ colors = addon.colors, textStyles = addon.textStyles,
+    return copy({ damageDealtScope = addon.damageDealtScope, colors = addon.colors, textStyles = addon.textStyles,
         disableDamageDealtInInstances = addon.disableDamageDealtInInstances,
         disableDamageTakenInInstances = addon.disableDamageTakenInInstances,
         showDamageDealt = addon.showDamageDealt, showDamageTaken = addon.showDamageTaken,
@@ -52,6 +52,7 @@ local function normalize(profile)
     for _, key in ipairs({ "showDamageDealt", "showDamageTaken", "disableDamageDealtInInstances", "disableDamageTakenInInstances" }) do
         if type(profile[key]) == "boolean" then result[key] = profile[key] end
     end
+    if profile.damageDealtScope == "target" then result.damageDealtScope = "target" end
     return result
 end
 function addon.GetProfileNames()
@@ -93,6 +94,7 @@ function addon.LoadProfile(name)
         addon.SetTextStyle(school, style.mode, style.thickness, unpack(style.color))
     end
     addon.SetAppearance(data.appearance.font, data.appearance.size)
+    addon.SetDamageDealtScope(data.damageDealtScope)
     addon.SetDamageNumbersVisible(false, data.showDamageDealt)
     addon.SetDamageNumbersVisible(true, data.showDamageTaken)
     addon.SetDisableDamageInInstances(false, data.disableDamageDealtInInstances)

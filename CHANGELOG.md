@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.2
+
+- Add All damage / Target only selection beneath the outgoing damage checkbox
+  in General. The dropdown is disabled when outgoing numbers are turned off.
+- Save the outgoing damage selection account-wide and in profiles. All damage
+  remains the default; Target only includes all attackers hitting your target.
+
 ## 1.1.1
 
 - Restore damage numbers on Forever build 70790 when the client restricts damage

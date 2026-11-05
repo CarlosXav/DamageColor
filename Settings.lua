@@ -127,7 +127,7 @@ for index, option in ipairs({
 }) do
     local check = CreateFrame("CheckButton", nil, optionsPanel, "ChatConfigCheckButtonTemplate")
     check:SetSize(26, 26)
-    check:SetPoint("TOPLEFT", 16, -100 - (index - 1) * 40)
+    check:SetPoint("TOPLEFT", 16, -100 - (index - 1) * 40 - (index > 1 and 44 or 0))
     local label = optionsPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     label:SetPoint("LEFT", check, "RIGHT", 6, 0)
     label:SetText(option.label)
@@ -140,6 +140,17 @@ for index, option in ipairs({
     end)
     visibilityChecks[option.key] = check
 end
+
+local scopeDropdown = CreateFrame("DropdownButton", nil, optionsPanel, "WowStyle1DropdownTemplate")
+scopeDropdown:SetSize(240, 28)
+scopeDropdown:SetPoint("TOPLEFT", 48, -134)
+local scopeNames = { all = "All damage", target = "Target only" }
+scopeDropdown:SetupMenu(function(_, root)
+    for _, scope in ipairs({ "all", "target" }) do
+        root:CreateRadio(scopeNames[scope], function(key) return addon.damageDealtScope == key end,
+            function(key) if addon.showDamageDealt then addon.SetDamageDealtScope(key) end end, scope)
+    end
+end)
 
 local takenPanel = pages["Damage Taken"]
 local takenNote = takenPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
@@ -306,6 +317,8 @@ fontPreviewLabel:SetPoint("TOPLEFT", 380, -8)
 fontPreviewLabel:SetText("Font preview")
 local refreshProfiles
 local function refresh()
+    scopeDropdown:OverrideText(scopeNames[addon.damageDealtScope])
+    scopeDropdown:SetEnabled(addon.showDamageDealt)
     instanceNote:SetText("Automatic instance disabling (General): damage dealt "
         .. (addon.disableDamageDealtInInstances and "ON" or "OFF") .. "; damage taken "
         .. (addon.disableDamageTakenInInstances and "ON" or "OFF")

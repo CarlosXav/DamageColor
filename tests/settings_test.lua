@@ -330,6 +330,29 @@ end
 local function number(amount)
     for _, frame in ipairs(frames) do if frame.text == tostring(amount) and frame.drawLayer == "OVERLAY" then return frame end end
 end
+local scopeMenu
+for _, frame in ipairs(frames) do
+    if frame.choices and frame.choices.target and frame.choices.all then scopeMenu = frame end
+end
+assert(scopeMenu and scopeMenu.enabled, "Outgoing scope dropdown must start enabled")
+scopeMenu.choices.target()
+assert(addon.damageDealtScope == "target" and DamageColorDB.damageDealtScope == "target")
+hit("nameplate2", 1991)
+assert(not number(1991), "Target scope must filter off-target hits")
+hit("nameplate1", 1992)
+assert(number(1992) and number(1992).shown, "Target nameplate must still receive hits")
+assert(addon.SaveProfile("Target scope"))
+addon.SetDamageDealtScope("all")
+assert(addon.ProfileIsDirty())
+assert(addon.LoadProfile("Target scope") and addon.damageDealtScope == "target")
+addon.SetDamageNumbersVisible(false, false)
+assert(not scopeMenu.enabled, "Scope menu must disable when outgoing numbers are unchecked")
+scopeMenu.choices.all()
+assert(addon.damageDealtScope == "target", "Disabled scope menu must preserve its selection")
+addon.SetDamageNumbersVisible(false, true)
+assert(scopeMenu.enabled)
+scopeMenu.choices.all()
+assert(addon.damageDealtScope == "all")
 hit("nameplate2", 1001)
 assert(number(1001) and number(1001).shown, "Off-target mouseover damage must display")
 assert(number(1001).point[4] > 800, "Off-target hit must be positioned at its own plate")
