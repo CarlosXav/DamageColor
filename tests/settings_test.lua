@@ -708,7 +708,7 @@ addon = loadAddon(DamageColorDB)
 assert(addon.GetTextStyle(1).mode == "outline" and not addon.ProfileIsDirty(), "Saved preset edits must persist")
 addon = loadAddon({ profiles = { Broken = { colors = false, appearance = { size = 0 / 0 } } } })
 assert(addon.LoadProfile("Broken") and addon.appearance.size == 48, "Invalid saved values must fall back safely")
--- Miss/resist events need neither a damage amount nor a trustworthy school.
+-- Miss/resist/dodge events need neither a damage amount nor a trustworthy school.
 local outcomePlate = C_NamePlate.GetNamePlateForUnit("target")
 outcomePlate.shown, outcomePlate.forbidden, outcomePlate.x, outcomePlate.y = true, false, 400, 300
 local outcomeListener
@@ -736,6 +736,11 @@ assert(count == 1 and math.abs(miss.fontSize - 48 * 0.85) < 0.001,
 rgb(miss.color, 0.6, 0.7, 0.8)
 outcomeListener.scripts.OnEvent(outcomeListener, "UNIT_COMBAT", "target", "RESIST", "", 0, 2)
 assert(outcomeWord("Resisted") == 1, "Explicit resists must render automatically")
+outcomeListener.scripts.OnEvent(outcomeListener, "UNIT_COMBAT", "target", "DODGE", inaccessible, inaccessible, inaccessible)
+local dodgeCount, dodge = outcomeWord("Dodge")
+assert(dodgeCount == 1 and math.abs(dodge.fontSize - 48 * 0.85) < 0.001,
+    "Dodge must use normal outcome size without readable flags, amount, or school")
+rgb(dodge.color, 0.6, 0.7, 0.8)
 assert(outcomeWord("Miss / Resist") == 0, "Ambiguous events must use only Miss")
 assert(addon.SaveProfile("Outcomes"))
 addon.LoadProfile("Default")
@@ -743,7 +748,7 @@ rgb(addon.colors[-1], 1, 1, 1)
 assert(addon.LoadProfile("Outcomes") and addon.GetTextStyle(-1).mode == "glow")
 rgb(addon.colors[-1], 0.6, 0.7, 0.8)
 miss.parent.scripts.OnUpdate(miss.parent, 1.8)
-assert(outcomeWord("Miss") == 0 and outcomeWord("Resisted") == 0, "Outcome messages must expire")
+assert(outcomeWord("Miss") == 0 and outcomeWord("Resisted") == 0 and outcomeWord("Dodge") == 0, "Outcome messages must expire")
 -- A secret amount must reach the engine unchanged, including its glow copies.
 setmetatable(inaccessible, { __tostring = function() error("Secret amount converted") end })
 addon.SetTextStyle(2, "glow", 2, 1, 1, 1)
@@ -886,6 +891,12 @@ for _, frame in ipairs(frames) do
     if frame.events.UNIT_COMBAT == "player" then incomingListener = frame end
 end
 assert(incomingListener)
+incomingListener.scripts.OnEvent(incomingListener, "UNIT_COMBAT", "player", "DODGE", restricted, restricted, restricted)
+local incomingDodgeCount, incomingDodge = outcomeWord("Dodge")
+assert(incomingDodgeCount == 1 and incomingDodge.point[3] == "CENTER"
+    and math.abs(incomingDodge.fontSize - 19 * 0.85) < 0.001,
+    "Incoming dodges must use the incoming anchor and normal size")
+rgb(incomingDodge.color, unpack(addon.colors[-1]))
 incomingListener.scripts.OnEvent(incomingListener, "UNIT_COMBAT", "player", "WOUND", "CRITICAL", 98765, 4)
 local incomingText
 for _, frame in ipairs(frames) do

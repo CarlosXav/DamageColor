@@ -196,7 +196,7 @@ local schools = {
     { 16, "Frost" }, { 8, "Nature" }, { 2, "Holy" },
     { 20, "Frostfire" },
     { 0, "Other" },
-    { -1, "Miss / resist text" },
+    { -1, "Miss / resist / dodge text" },
 }
 
 local pickerSession
@@ -437,7 +437,7 @@ for i, school in ipairs(schools) do
     local label = cell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     label:SetPoint("TOP", cell, "TOP", 0, 0)
     label:SetWidth(100)
-    label:SetText(school[1] == 1 and "Physical" or (school[1] == -1 and "Miss / Resist" or school[2]))
+    label:SetText(school[1] == 1 and "Physical" or (school[1] == -1 and "Miss / Resist / Dodge" or school[2]))
     local holder = CreateFrame("Frame", nil, cell)
     holder:SetSize(1, 1)
     holder:SetPoint("CENTER", cell, "CENTER", 0, -8)

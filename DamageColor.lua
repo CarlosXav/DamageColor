@@ -203,7 +203,7 @@ live:SetScript("OnUpdate", function(self, elapsed)
     if not any then self:Hide() end
 end)
 
-local outcomes = { MISS = "Miss", RESIST = "Resisted" }
+local outcomes = { MISS = "Miss", RESIST = "Resisted", DODGE = "Dodge" }
 local function handleDamage(unit, event, flags, amount, school)
     trace("LIVE_EVENT", unit, event)
     trace("FLAGS", unit, flags)

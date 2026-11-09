@@ -12,7 +12,7 @@ to Blizzard numbers in instances using the options in **General**.
 
 - Damage dealt above enemy nameplates, including off-target and area damage.
 - Damage taken near your character, with its own size and placement controls.
-- Individual colors for each damage school, plus Miss and Resisted messages.
+- Individual colors for each damage school, plus Miss, Resisted, and Dodge messages.
 - Five font choices, adjustable text sizes, and larger critical hits.
 - Optional colored outlines and soft glows for each damage type.
 - Live previews and saved profiles to compare and switch between looks.
@@ -64,7 +64,7 @@ Auto-attacks, physical abilities, and bleeds share the Physical style.
 | Arcane | Pinkish purple |
 | Frostfire | Light blue with an orange outline |
 | Other | Yellow |
-| Miss / resist text | White |
+| Miss / resist / dodge text | White |
 
 Choose **None**, **Outline**, or **Soft glow** for each type, with a separate
 edge color and thickness. Frostfire has its own style; changing Fire or Frost

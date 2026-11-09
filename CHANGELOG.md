@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.3
+
+- Display Dodge messages for damage dealt and damage taken using the shared
+  Miss / resist / dodge text style.
+- Update the style selection and profile preview labels to include dodge.
+
 ## 1.1.2
 
 - Add All damage / Target only selection beneath the outgoing damage checkbox
