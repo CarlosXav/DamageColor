@@ -14,7 +14,7 @@ local function same(a, b)
     return true
 end
 local function snapshot()
-    return copy({ damageDealtScope = addon.damageDealtScope, colors = addon.colors, textStyles = addon.textStyles,
+    return copy({ damageDealt = addon.damageDealt, spacing = addon.spacing, incomingSpacing = addon.incomingSpacing, damageDealtScope = addon.damageDealtScope, colors = addon.colors, textStyles = addon.textStyles,
         disableDamageDealtInInstances = addon.disableDamageDealtInInstances,
         disableDamageTakenInInstances = addon.disableDamageTakenInInstances,
         showDamageDealt = addon.showDamageDealt, showDamageTaken = addon.showDamageTaken,
@@ -47,6 +47,9 @@ local function normalize(profile)
     end
     if number(appearance.size, 12, 96) then result.appearance.size = math.floor(appearance.size + 0.5) end
     if type(profile.hideBlizzardDamage) == "boolean" then result.hideBlizzardDamage = profile.hideBlizzardDamage end
+    result.damageDealt = addon.NormalizeLayout(profile.damageDealt, false)
+    result.incomingSpacing = addon.NormalizeLayout(profile.incomingSpacing, true)
+    result.spacing = addon.NormalizeLayout(profile.spacing, true)
     result.damageTaken = addon.NormalizeDamageTaken(profile.damageTaken, result.appearance.size)
     if type(profile.hideBlizzardDamageTaken) == "boolean" then result.hideBlizzardDamageTaken = profile.hideBlizzardDamageTaken end
     for _, key in ipairs({ "showDamageDealt", "showDamageTaken", "disableDamageDealtInInstances", "disableDamageTakenInInstances" }) do
@@ -99,6 +102,9 @@ function addon.LoadProfile(name)
     addon.SetDamageNumbersVisible(true, data.showDamageTaken)
     addon.SetDisableDamageInInstances(false, data.disableDamageDealtInInstances)
     addon.SetDisableDamageInInstances(true, data.disableDamageTakenInInstances)
+    addon.SetLayout("damageDealt", data.damageDealt.x, data.damageDealt.y)
+    addon.SetLayout("incomingSpacing", data.incomingSpacing.x, data.incomingSpacing.y)
+    addon.SetLayout("spacing", data.spacing.x, data.spacing.y)
     addon.SetDamageTaken(data.damageTaken.size, data.damageTaken.x, data.damageTaken.y)
     addon.SetHideBlizzardDamageTaken(data.hideBlizzardDamageTaken)
     addon.SetHideBlizzardDamage(data.hideBlizzardDamage)

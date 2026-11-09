@@ -102,8 +102,9 @@ local function placeWithoutOverlap(label)
     addon.ApplyFont(label.text, label.baseSize * 1.1)
     local style = addon.GetTextStyle(label.school)
     local padding = 4 + (style.mode == "none" and 0 or style.thickness * 4)
-    label.width = textDimension(label.text, "GetStringWidth", #label.displayText * label.baseSize * 1.1 * 0.65) + padding
-    label.height = textDimension(label.text, "GetStringHeight", label.baseSize * 1.1) + padding
+    local spacing = label.incoming and addon.incomingSpacing or addon.spacing
+    label.width = math.max(1, textDimension(label.text, "GetStringWidth", #label.displayText * label.baseSize * 1.1 * 0.65) + padding + spacing.x)
+    label.height = math.max(1, textDimension(label.text, "GetStringHeight", label.baseSize * 1.1) + padding + spacing.y)
     local originX, originY = label.x, label.y
     local bestX, bestY, bestOverlap
     local candidates = {}
@@ -162,10 +163,10 @@ local function positionLabel(label)
     if label.incoming then
         label.text:SetPoint("CENTER", UIParent, "CENTER", label.x + addon.damageTaken.x, label.y + addon.damageTaken.y + label.age * 12)
     elseif label.anchor then
-        label.text:SetPoint("CENTER", label.anchor, "TOP", label.x, y)
+        label.text:SetPoint("CENTER", label.anchor, "TOP", label.x + addon.damageDealt.x, y + addon.damageDealt.y)
     else
         -- Snapshot when readable: old hits remain at their impact position.
-        label.text:SetPoint("CENTER", UIParent, "BOTTOMLEFT", label.x, y)
+        label.text:SetPoint("CENTER", UIParent, "BOTTOMLEFT", label.x + addon.damageDealt.x, y + addon.damageDealt.y)
     end
     local scale
     if label.age < 0.08 then
@@ -204,7 +205,7 @@ live:SetScript("OnUpdate", function(self, elapsed)
 end)
 
 local outcomes = { MISS = "Miss", RESIST = "Resisted", DODGE = "Dodge" }
-local function handleDamage(unit, event, flags, amount, school)
+local function handleDamage(unit, event, flags, amount, school, previewHit)
     trace("LIVE_EVENT", unit, event)
     trace("FLAGS", unit, flags)
     displayStats.received = displayStats.received + 1
@@ -224,7 +225,7 @@ local function handleDamage(unit, event, flags, amount, school)
         local ok, targetPlate = pcall(C_NamePlate.GetNamePlateForUnit, "target")
         if not ok or not targetPlate or not record or record.plate ~= targetPlate then return end
     end
-    if unit == "target" and C_NamePlate then
+    if unit == "target" and C_NamePlate and not previewHit then
         -- A target alias and its nameplate token can report the same hit.
         -- Prefer the nameplate subscription; never deduplicate by hit amount.
         local ok, plate = pcall(C_NamePlate.GetNamePlateForUnit, "target")
@@ -459,8 +460,17 @@ function addon.RefreshDamageVisibility()
         end
     end
 end
+local previewSchools = { 0, 1, 2, 4, 8, 16, 20, 32, 64 }
 function addon.ShowDamageTakenPreview()
-    handleDamage("player", "WOUND", "", 123, 1)
+    handleDamage("player", "WOUND", math.random(5) == 1 and "CRITICAL" or "", 123, previewSchools[math.random(#previewSchools)], true)
+end
+function addon.ShowDamageDealtPreview()
+    local x, y, anchor = unitPosition("target")
+    if not anchor and (not x or not y) then
+        say("Select an enemy with a visible nameplate to preview damage dealt.")
+        return
+    end
+    handleDamage("target", "WOUND", math.random(5) == 1 and "CRITICAL" or "", 123, previewSchools[math.random(#previewSchools)], true)
 end
 local previewTime = 0
 function addon.ShowPreview()

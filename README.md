@@ -41,10 +41,13 @@ the sidebar to find:
 | **General** | Choose All damage or Target only for damage dealt, show or hide damage dealt and taken, control Blizzard numbers, and choose when to switch automatically in instances. |
 | **Font** | Choose a font and adjust outgoing text size. |
 | **Style** | Pick a damage type, then customize its text color, outline, or glow. |
-| **Damage Taken** | Adjust incoming text size and position, and preview the placement. |
+| **Damage Dealt** | Adjust nameplate position offsets and outgoing spacing; preview a random school on a selected enemy nameplate. |
+| **Damage Taken** | Adjust incoming text size, position, and independent spacing; preview a random school. |
 | **Profiles** | Preview, load, and save your favorite looks. |
 
 Changes apply immediately and are remembered across logins for your account.
+Spacing defaults to 0 and ranges from -200 (closer) to 200 (farther apart),
+independently for each direction. Both damage previews have a 20% chance to crit.
 Use the previews to check your look without entering combat, including how
 critical hits will appear.
 

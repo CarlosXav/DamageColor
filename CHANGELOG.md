@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+
+- Add a Damage Dealt settings page with horizontal and vertical position offsets
+  relative to enemy nameplates.
+- Add independent horizontal and vertical spacing controls for damage dealt and
+  damage taken, from -200 to 200 with zero as the default.
+- Save placement and spacing in profiles while preserving existing settings.
+- Add a damage dealt preview on the selected enemy nameplate. Both direction
+  previews use a random school and have a 20% chance to crit.
+
 ## 1.1.3
 
 - Display Dodge messages for damage dealt and damage taken using the shared

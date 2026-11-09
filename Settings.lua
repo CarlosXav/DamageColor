@@ -42,7 +42,7 @@ commands:SetText(table.concat({
 }, "\n\n"))
 
 local pages, pageCanvases = {}, {}
-for _, name in ipairs({ "General", "Font", "Style", "Damage Taken", "Profiles" }) do
+for _, name in ipairs({ "General", "Font", "Style", "Damage Dealt", "Damage Taken", "Profiles" }) do
     local pageCanvas = CreateFrame("Frame", nil, UIParent)
     pageCanvas:Hide()
     local pageScroll = CreateFrame("ScrollFrame", nil, pageCanvas, "UIPanelScrollFrameTemplate")
@@ -152,6 +152,60 @@ scopeDropdown:SetupMenu(function(_, root)
     end
 end)
 
+local layoutControls, refreshingLayout = {}, false
+for _, spec in ipairs({
+    { key = "damageDealt", page = "Damage Dealt", low = -500, high = 500, top = 100,
+      note = "Position offsets from the usual placement above each enemy nameplate. Positive values move right and up. Font and Style control outgoing size and appearance." },
+    { key = "spacing", page = "Damage Dealt", low = -200, high = 200, top = 390 },
+    { key = "incomingSpacing", page = "Damage Taken", low = -200, high = 200, top = 470 },
+}) do
+    local key, page = spec.key, pages[spec.page]
+    if spec.note then
+        local note = page:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        note:SetPoint("TOPLEFT", 16, -16)
+        note:SetWidth(520)
+        note:SetJustifyH("LEFT")
+        note:SetText(spec.note)
+    end
+    layoutControls[key] = {}
+    for i, axis in ipairs({ "x", "y" }) do
+        local label = page:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        label:SetPoint("TOPLEFT", 16, -spec.top - (i - 1) * 90)
+        local slider = CreateFrame("Slider", nil, page, "OptionsSliderTemplate")
+        slider:SetPoint("TOPLEFT", 48, -spec.top - 28 - (i - 1) * 90)
+        slider:SetSize(356, 18)
+        slider:SetMinMaxValues(spec.low, spec.high)
+        slider:SetValueStep(1)
+        slider:SetObeyStepOnDrag(true)
+        addSliderArrows(slider, spec.low, spec.high)
+        slider:SetScript("OnValueChanged", function(_, value)
+            if refreshingLayout or addon[key][axis] == value then return end
+            local v = addon[key]
+            addon.SetLayout(key, axis == "x" and value or v.x, axis == "y" and value or v.y)
+        end)
+        layoutControls[key][axis] = { label = label, slider = slider,
+            title = (axis == "x" and "Horizontal" or "Vertical") .. (key ~= "damageDealt" and " spacing" or " offset") }
+    end
+    local reset = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    reset:SetSize(180, 28)
+    reset:SetPoint("TOPLEFT", 16, -spec.top - 200)
+    reset:SetText(key ~= "damageDealt" and "Reset spacing" or "Reset placement")
+    reset:SetScript("OnClick", function() addon.SetLayout(key, 0, 0) end)
+end
+
+local dealtPreview = CreateFrame("Button", nil, pages["Damage Dealt"], "UIPanelButtonTemplate")
+dealtPreview:SetSize(180, 28)
+dealtPreview:SetPoint("TOPLEFT", 16, -330)
+dealtPreview:SetText("Preview damage dealt")
+dealtPreview:SetScript("OnClick", function() addon.ShowDamageDealtPreview() end)
+for _, name in ipairs({ "Damage Dealt", "Damage Taken" }) do
+    pages[name]:SetSize(560, 820)
+    local note = pages[name]:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    note:SetPoint("TOPLEFT", 16, name == "Damage Dealt" and -640 or -720)
+    note:SetWidth(520)
+    note:SetJustifyH("LEFT")
+    note:SetText("Spacing: 0 keeps the usual gaps. Negative values bring numbers closer; positive values spread them apart. Previews use a random school. Damage dealt preview requires an enemy nameplate.")
+end
 local takenPanel = pages["Damage Taken"]
 local takenNote = takenPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 takenNote:SetPoint("TOPLEFT", 16, -16)
@@ -317,6 +371,14 @@ fontPreviewLabel:SetPoint("TOPLEFT", 380, -8)
 fontPreviewLabel:SetText("Font preview")
 local refreshProfiles
 local function refresh()
+    refreshingLayout = true
+    for key, controls in pairs(layoutControls) do
+        for axis, control in pairs(controls) do
+            control.label:SetText(control.title .. ": " .. addon[key][axis])
+            control.slider:SetValue(addon[key][axis])
+        end
+    end
+    refreshingLayout = false
     scopeDropdown:OverrideText(scopeNames[addon.damageDealtScope])
     scopeDropdown:SetEnabled(addon.showDamageDealt)
     instanceNote:SetText("Automatic instance disabling (General): damage dealt "
@@ -387,6 +449,10 @@ addon.OnPaletteChanged = function()
     addon.RefreshDisplayColors()
 end
 addon.OnAppearanceChanged = function()
+    refresh()
+    addon.RefreshTextAppearance()
+end
+addon.OnLayoutChanged = function()
     refresh()
     addon.RefreshTextAppearance()
 end
@@ -539,7 +605,7 @@ note:SetText("Choose a number type to customize its text and edge together. Soft
 
 local category = Settings.RegisterCanvasLayoutCategory(canvas, "DamageColor")
 Settings.RegisterAddOnCategory(category)
-for _, name in ipairs({ "General", "Font", "Style", "Damage Taken", "Profiles" }) do
+for _, name in ipairs({ "General", "Font", "Style", "Damage Dealt", "Damage Taken", "Profiles" }) do
     local pageCanvas = pageCanvases[name]
     Settings.RegisterCanvasLayoutSubcategory(category, pageCanvas, name)
     pageCanvas:SetScript("OnShow", refresh)

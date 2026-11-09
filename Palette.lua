@@ -30,6 +30,28 @@ addon.disableDamageTakenInInstances = false
 addon.hideBlizzardDamage = true
 addon.hideBlizzardDamageTaken = true
 addon.damageTaken = { size = 24, x = 0, y = -250 }
+-- Position offsets preserve the original above-nameplate placement at zero.
+addon.damageDealt = { x = 0, y = 0 }
+addon.spacing = { x = 0, y = 0 }
+addon.incomingSpacing = { x = 0, y = 0 }
+function addon.NormalizeLayout(value, spacing)
+    value = type(value) == "table" and value or {}
+    local result = {}
+    for _, key in ipairs({ "x", "y" }) do
+        local v = value[key]
+        local low, high = spacing and -200 or -500, spacing and 200 or 500
+        result[key] = type(v) == "number" and v == v and v >= low and v <= high
+            and math.floor(v + 0.5) or 0
+    end
+    return result
+end
+function addon.SetLayout(key, x, y)
+    if key ~= "damageDealt" and key ~= "spacing" and key ~= "incomingSpacing" then return end
+    local value = addon.NormalizeLayout({ x = x, y = y }, key ~= "damageDealt")
+    addon[key] = value
+    if DamageColorDB then DamageColorDB[key] = { x = value.x, y = value.y } end
+    if addon.OnLayoutChanged then addon.OnLayoutChanged() end
+end
 local function fontInfo(key)
     for _, font in ipairs(addon.fonts) do if font.key == key then return font end end
 end
@@ -168,7 +190,7 @@ function addon.ResetColors()
 end
 
 function addon.GetDefaultProfile()
-    local profile = { damageDealtScope = "all", disableDamageDealtInInstances = true, disableDamageTakenInInstances = false, showDamageDealt = true, showDamageTaken = true, colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
+    local profile = { damageDealt = { x = 0, y = 0 }, spacing = { x = 0, y = 0 }, incomingSpacing = { x = 0, y = 0 }, damageDealtScope = "all", disableDamageDealtInInstances = true, disableDamageTakenInInstances = false, showDamageDealt = true, showDamageTaken = true, colors = {}, textStyles = {}, appearance = { font = "default", size = 48 }, hideBlizzardDamage = true, hideBlizzardDamageTaken = true,
         damageTaken = { size = 24, x = 0, y = -250 } }
     for school, color in pairs(defaults) do
         profile.colors[school] = copy(color)
@@ -235,6 +257,10 @@ loader:SetScript("OnEvent", function(self, _, name)
         addon[key] = DamageColorDB[key]
     end
     addon.SetDamageDealtScope(DamageColorDB.damageDealtScope == "target" and "target" or "all")
+    for _, key in ipairs({ "damageDealt", "spacing", "incomingSpacing" }) do
+        local value = addon.NormalizeLayout(DamageColorDB[key], key ~= "damageDealt")
+        addon.SetLayout(key, value.x, value.y)
+    end
     DamageColorDB.textHeightCap = nil -- Remove the retired screen-cap setting.
     local taken = addon.NormalizeDamageTaken(DamageColorDB.damageTaken, addon.appearance.size)
     addon.SetDamageTaken(taken.size, taken.x, taken.y)

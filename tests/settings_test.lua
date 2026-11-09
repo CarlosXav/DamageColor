@@ -1006,7 +1006,7 @@ for _, slider in ipairs(frames) do
             end
         end
         assert(left and right, "Every slider needs both arrows")
-        if slider.minimum < 0 then
+        if slider.minimum == -500 then
             placementCount = placementCount + 1
             assert(slider.minimum == -500 and slider.maximum == 500)
         end
@@ -1022,7 +1022,7 @@ for _, slider in ipairs(frames) do
         assert(slider:GetValue() == slider.maximum, "Right arrow must stop at the maximum")
     end
 end
-assert(sliderCount == 5 and placementCount == 2)
+assert(sliderCount == 11 and placementCount == 4)
 print("PASS: all slider arrows, one-unit increments, bounds, and preserved saved placement")
 
 -- Retiring the cap removes only that setting, including from saved profiles.
@@ -1167,3 +1167,31 @@ assert(addon.ProfileIsDirty())
 assert(addon.LoadProfile("Slash toggles"))
 assert(not addon.showDamageDealt and not addon.showDamageTaken)
 print("PASS: slash direction toggles, mixed states, native restoration, session-off, persistence, and profiles")
+
+
+addon = loadAddon({})
+assert(submenus["Damage Dealt"] and not submenus.Spacing)
+assert(addon.damageDealt.x == 0 and addon.spacing.y == 0)
+addon.SetLayout("damageDealt", 75, -45)
+addon.SetLayout("spacing", 12, 20)
+assert(addon.SaveProfile("Layout"))
+addon.SetLayout("damageDealt", 0, 0)
+addon.SetLayout("spacing", 0, 0)
+assert(addon.LoadProfile("Layout"))
+assert(addon.damageDealt.x == 75 and addon.damageDealt.y == -45)
+assert(addon.spacing.x == 12 and addon.spacing.y == 20)
+assert(DamageColorDB.damageDealt.x == 75 and DamageColorDB.spacing.y == 20)
+assert(addon.GetProfile("Default").spacing.x == 0)
+addon = loadAddon({ damageDealt = { x = 75, y = -45 }, spacing = { x = 12, y = 20 } })
+assert(addon.damageDealt.y == -45 and addon.spacing.x == 12)
+print("PASS: layout menus, defaults, persistence and profile round trips")
+
+
+addon.SetLayout("spacing", -200, 200)
+addon.SetLayout("incomingSpacing", 30, -40)
+assert(addon.spacing.x == -200 and addon.incomingSpacing.y == -40)
+assert(addon.SaveProfile("Separate spacing"))
+addon.SetLayout("incomingSpacing", 0, 0)
+assert(addon.LoadProfile("Separate spacing"))
+assert(addon.spacing.x == -200 and addon.incomingSpacing.y == -40)
+print("PASS: signed independent direction spacing")
