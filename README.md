@@ -1,5 +1,7 @@
 # DamageColor
 
+**Version: 1.2.0** · World of Warcraft: Forever · Interface 16001
+
 Make every hit stand out. DamageColor brings customizable, school-colored damage
 numbers to **World of Warcraft: Forever**, with punchy animations, bold critical
 hits, and a style you can make your own.
